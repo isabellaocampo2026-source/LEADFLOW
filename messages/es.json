@@ -1,0 +1,69 @@
+{
+    "HomePage": {
+        "title": "Bienvenido a LFlow.",
+        "subtitle": "Tu generador de leads de Google Maps. Encuentra clientes potenciales para cualquier nicho de negocio.",
+        "cta": "Buscar Leads",
+        "valueProps": {
+            "discover": {
+                "title": "Encuentra Negocios",
+                "desc": "Busca cualquier tipo de negocio en Google Maps. Restaurantes, dentistas, gimnasios - lo que necesites."
+            },
+            "manage": {
+                "title": "Obtén Datos de Contacto",
+                "desc": "Extrae teléfonos, websites, direcciones y ratings automáticamente. Todo listo para contactar."
+            },
+            "connect": {
+                "title": "Exporta y Contacta",
+                "desc": "Descarga tus leads en CSV. Marca contactados y guarda notas de seguimiento."
+            }
+        },
+        "systemStatus": {
+            "title": "Estado del Sistema",
+            "db": "Base de Datos Conectada",
+            "engine": "Buscador de Google Maps Listo",
+            "whatsapp": "Exportación CSV Activa"
+        }
+    },
+    "ScraperPage": {
+        "title": "Buscar Leads",
+        "subtitle": "Encuentra leads de cualquier tipo de negocio en Google Maps",
+        "form": {
+            "businessType": "Tipo de negocio",
+            "location": "Ubicación",
+            "maxResults": "Máximo de resultados",
+            "submit": "Buscar Leads",
+            "loading": "Buscando..."
+        },
+        "results": {
+            "title": "Resultados",
+            "export": "Exportar CSV",
+            "contact": "Contactar",
+            "contacted": "Contactado",
+            "openMaps": "Ver en Maps"
+        }
+    },
+    "LeadsPage": {
+        "title": "Leads Guardados",
+        "subtitle": "Revisa y gestiona los leads que has encontrado.",
+        "stats": {
+            "all": "Todos los Leads",
+            "subtitle": "Lista de negocios guardados en tu base de datos.",
+            "noLeads": "No hay leads aún. ¡Ve al Scraper para encontrar algunos!"
+        },
+        "table": {
+            "name": "Negocio",
+            "phone": "Teléfono",
+            "website": "Website",
+            "address": "Dirección",
+            "rating": "Rating",
+            "action": "Acción"
+        },
+        "contact": "Contactar",
+        "na": "N/A"
+    },
+    "Sidebar": {
+        "dashboard": "Inicio",
+        "scraper": "Buscar Leads",
+        "leads": "Mis Leads"
+    }
+}

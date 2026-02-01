@@ -1,0 +1,71 @@
+{
+    "HomePage": {
+        "title": "Welcome to LeadFlow.",
+        "subtitle": "Your Google Maps lead generator. Find potential customers for any business niche.",
+        "cta": "Start Finding Leads",
+        "valueProps": {
+            "discover": {
+                "title": "Find Businesses",
+                "desc": "Search any type of business on Google Maps. Restaurants, dentists, gyms - whatever you need."
+            },
+            "manage": {
+                "title": "Get Contact Data",
+                "desc": "Extract phone numbers, websites, addresses and ratings automatically. All ready to contact."
+            },
+            "connect": {
+                "title": "Export & Contact",
+                "desc": "Download your leads as CSV. Mark as contacted and save follow-up notes."
+            }
+        },
+        "systemStatus": {
+            "title": "System Status",
+            "db": "Database Connected",
+            "engine": "Google Maps Scraper Ready",
+            "whatsapp": "CSV Export Active"
+        }
+    },
+    "ScraperPage": {
+        "title": "Lead Scraper",
+        "subtitle": "Find leads from any type of business on Google Maps",
+        "form": {
+            "businessType": "Business type",
+            "location": "Location",
+            "maxResults": "Maximum results",
+            "submit": "Search Leads",
+            "loading": "Searching..."
+        },
+        "results": {
+            "title": "Results",
+            "export": "Export CSV",
+            "contact": "Contact",
+            "contacted": "Contacted",
+            "openMaps": "View on Maps"
+        }
+    },
+    "LeadsPage": {
+        "title": "Saved Leads",
+        "subtitle": "Review and manage the leads you have found.",
+        "stats": {
+            "all": "All Leads",
+            "subtitle": "List of businesses saved in your database.",
+            "noLeads": "No leads found yet. Go to the Scraper to find some!"
+        },
+        "table": {
+            "name": "Business",
+            "phone": "Phone",
+            "website": "Website",
+            "address": "Address",
+            "rating": "Rating",
+            "action": "Action"
+        },
+        "contact": "Contact",
+        "na": "N/A"
+    },
+    "Sidebar": {
+        "dashboard": "Dashboard",
+        "scraper": "Lead Scraper",
+        "leads": "My Leads",
+        "calls": "History",
+        "settings": "Settings"
+    }
+}

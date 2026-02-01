@@ -1,0 +1,13 @@
+-- RUN THIS IN SUPABASE SQL EDITOR
+
+-- 1. Add new columns to the existing table
+ALTER TABLE leads 
+ADD COLUMN IF NOT EXISTS area INTEGER,
+ADD COLUMN IF NOT EXISTS bedrooms INTEGER,
+ADD COLUMN IF NOT EXISTS bathrooms INTEGER,
+ADD COLUMN IF NOT EXISTS stratum INTEGER,
+ADD COLUMN IF NOT EXISTS days_on_market INTEGER,
+ADD COLUMN IF NOT EXISTS posted_by TEXT;
+
+-- 2. Verify it worked
+SELECT * FROM leads LIMIT 1;
