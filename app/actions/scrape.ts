@@ -262,9 +262,11 @@ export async function enrichLeadWithEmail(placeId: string, website: string) {
             console.error("Apollo search failed:", e);
         }
 
-        // 3. Strict Mode: No fallback to generic scraper
+        // 3. Fallback to Outscraper (Generic Web Scraper)
         if (!email) {
-            return { success: false, error: "No se encontró CEO/Dueño en Apollo" };
+            const { enrichDomainEmails } = await import("@/lib/scraper/outscraper");
+            email = await enrichDomainEmails(domain);
+            source = 'Web Scraper';
         }
 
         // 4. Update DB
