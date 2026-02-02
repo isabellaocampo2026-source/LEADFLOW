@@ -31,10 +31,11 @@ export async function scrapeLeads(
         maxReviews?: number
         postalCode?: string
         source?: 'maps' | 'instagram'
+        enrichment?: boolean
     }
 ): Promise<ScrapeResult> {
     try {
-        let { skip = 0, limit = 50, strategy = 'standard', onlyNoWebsite = false, maxReviews, postalCode, source = 'maps' } = options || {};
+        let { skip = 0, limit = 50, strategy = 'standard', onlyNoWebsite = false, maxReviews, postalCode, source = 'maps', enrichment = false } = options || {};
         console.log(`🚀 Starting Scraper (${source}): ${category} en ${city} ${postalCode ? `(${postalCode})` : ''} (Target: ${limit})`);
 
         // 1. Get existing placeIds from DB (to skip duplicates)
@@ -79,7 +80,8 @@ export async function scrapeLeads(
                     city: searchCity, // Append postal code to city for query
                     limit: batchLimit,
                     skip: r_skip,
-                    existingIds
+                    existingIds,
+                    enrichment
                 });
             }
 
@@ -220,10 +222,12 @@ export async function getLeads() {
             placeId: row.place_id,
             name: row.name,
             phone: row.phone,
+            email: row.email,
             address: row.address,
             city: row.city,
             category: row.category,
             rating: row.rating,
+            reviewCount: row.review_count, // Map correctly
             website: row.website,
             mapsUrl: row.maps_url,
             contacted: row.contacted,
@@ -231,4 +235,38 @@ export async function getLeads() {
             scrapedAt: row.scraped_at
         })) || []
     };
+}
+
+/**
+ * Enrich a specific lead with email
+ */
+export async function enrichLeadWithEmail(placeId: string, website: string) {
+    try {
+        // 1. Clean domain
+        let domain = website.replace(/^(?:https?:\/\/)?(?:www\.)?/i, "").split('/')[0];
+        if (!domain) return { success: false, error: "Dominio inválido" };
+
+        const { enrichDomainEmails } = await import("@/lib/scraper/outscraper");
+
+        // 2. Call Outscraper Enrichment
+        const email = await enrichDomainEmails(domain);
+
+        if (!email) {
+            return { success: false, error: "No se encontró email" };
+        }
+
+        // 3. Update DB
+        const { error } = await supabase
+            .from('business_leads')
+            .update({ email })
+            .eq('place_id', placeId);
+
+        if (error) throw error;
+
+        return { success: true, email };
+
+    } catch (error: any) {
+        console.error('Enrichment failed:', error);
+        return { success: false, error: error.message };
+    }
 }

@@ -34,6 +34,7 @@ export default function ScraperPage() {
     const [searchStrategy, setSearchStrategy] = useState<'standard' | 'deep-dive'>('standard')
     const [searchLimit, setSearchLimit] = useState(60)
     const [onlyNoWebsite, setOnlyNoWebsite] = useState(false)
+    const [searchEmail, setSearchEmail] = useState(false) // New state for email search
     const [maxReviews, setMaxReviews] = useState<number | null>(null)
     const [skipCount, setSkipCount] = useState(50)
 
@@ -97,7 +98,8 @@ export default function ScraperPage() {
                 strategy: searchStrategy,
                 onlyNoWebsite,
                 maxReviews: maxReviews || undefined,
-                postalCode: selectedZone || undefined
+                postalCode: selectedZone || undefined,
+                enrichment: searchEmail // Pass enrichment flag
             }
             const result = await scrapeLeads(selectedCategory.trim(), selectedCity.trim(), options)
 
@@ -530,214 +532,233 @@ export default function ScraperPage() {
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-3">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={onlyNoWebsite}
-                                            onChange={(e) => setOnlyNoWebsite(e.target.checked)}
-                                            className="rounded"
-                                        />
-                                        <span className="text-xs text-muted-foreground">Solo sin sitio web</span>
-                                    </label>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <div className="text-xs text-muted-foreground">
-                                        Máx. reseñas:
-                                    </div>
+                                <label className="flex items-center gap-2 cursor-pointer">
                                     <input
-                                        type="number"
-                                        className="w-20 h-8 text-sm border rounded px-2"
-                                        value={maxReviews || ''}
-                                        onChange={(e) => setMaxReviews(e.target.value ? Number(e.target.value) : null)}
-                                        min={0}
-                                        placeholder="∞"
+                                        type="checkbox"
+                                        checked={onlyNoWebsite}
+                                        onChange={(e) => setOnlyNoWebsite(e.target.checked)}
+                                        className="rounded"
                                     />
+                                    <span className="text-xs text-muted-foreground">Solo sin sitio web</span>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <label className="flex items-center gap-2 cursor-pointer" title="Consume 3 créditos por lead en Outscraper">
+                                    <input
+                                        type="checkbox"
+                                        checked={searchEmail}
+                                        onChange={(e) => setSearchEmail(e.target.checked)}
+                                        className="rounded"
+                                    />
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                        Búsqueda con Emails <span className="text-[10px] text-amber-500 font-medium">(Premium)</span>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <div className="text-xs text-muted-foreground">
+                                    Máx. reseñas:
                                 </div>
+                                <input
+                                    type="number"
+                                    className="w-20 h-8 text-sm border rounded px-2"
+                                    value={maxReviews || ''}
+                                    onChange={(e) => setMaxReviews(e.target.value ? Number(e.target.value) : null)}
+                                    min={0}
+                                    placeholder="∞"
+                                />
                             </div>
                         </div>
+                    </div>
 
-                        <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Buscando... (Estricto)
-                                </>
-                            ) : (
-                                <>
-                                    <Search className="mr-2 h-4 w-4" />
-                                    Buscar Leads
-                                </>
-                            )}
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
+                    <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Buscando... (Estricto)
+                            </>
+                        ) : (
+                            <>
+                                <Search className="mr-2 h-4 w-4" />
+                                Buscar Leads
+                            </>
+                        )}
+                    </Button>
+                </form>
+            </CardContent>
+        </Card>
 
-            {/* Error */}
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                    {error}
-                </div>
-            )}
+            {/* Error */ }
+    {
+        error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+                {error}
+            </div>
+        )
+    }
 
-            {/* Stats */}
-            {stats && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-                    ✅ Encontrados: {stats.found} leads con teléfono | Nuevos guardados: {stats.savedNew}
-                </div>
-            )}
+    {/* Stats */ }
+    {
+        stats && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+                ✅ Encontrados: {stats.found} leads con teléfono | Nuevos guardados: {stats.savedNew}
+            </div>
+        )
+    }
 
-            {/* Results */}
-            {leads.length > 0 && (
-                <Card className="relative">
-                    <CardHeader>
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <CardTitle>Resultados ({leads.length})</CardTitle>
+    {/* Results */ }
+    {
+        leads.length > 0 && (
+            <Card className="relative">
+                <CardHeader>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <CardTitle>Resultados ({leads.length})</CardTitle>
 
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-muted-foreground">Ordenar por:</span>
-                                    <select
-                                        className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value as any)}
-                                    >
-                                        <option value="relevance">Relevancia (Google)</option>
-                                        <option value="opportunity">🔥 Oportunidad de Venta</option>
-                                    </select>
-                                </div>
-                                <Button variant="outline" size="sm" onClick={toggleAll}>
-                                    {selectedLeads.size === leads.length ? "Deseleccionar" : "Seleccionar Todos"}
-                                </Button>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-muted-foreground">Ordenar por:</span>
+                                <select
+                                    className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as any)}
+                                >
+                                    <option value="relevance">Relevancia (Google)</option>
+                                    <option value="opportunity">🔥 Oportunidad de Venta</option>
+                                </select>
                             </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {sortedLeads.map((lead, i) => {
-                                const score = getOpportunityScore(lead)
-                                const isHighOpportunity = score >= 2
-                                const isSelected = selectedLeads.has(lead.placeId)
-
-                                return (
-                                    <div key={lead.placeId || i} className={`flex items-start justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors ${isSelected ? 'bg-primary/5 border-primary/50' : ''} ${isHighOpportunity && !isSelected ? 'bg-orange-50/50 border-orange-100' : ''}`}>
-                                        <div className="flex items-start gap-4 flex-1 min-w-0">
-                                            {/* Checkbox */}
-                                            <div className="pt-1">
-                                                <input
-                                                    type="checkbox"
-                                                    className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                                    checked={isSelected}
-                                                    onChange={() => toggleSelection(lead.placeId)}
-                                                />
-                                            </div>
-
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <h3 className="font-medium truncate text-base">{lead.name}</h3>
-                                                    {/* Badges */}
-                                                    {!lead.website && (
-                                                        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors border-transparent bg-red-100 text-red-700">
-                                                            Sin Sitio Web
-                                                        </span>
-                                                    )}
-                                                    {(lead.reviewCount || 0) < 10 && (
-                                                        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors border-transparent bg-amber-100 text-amber-700">
-                                                            Invisible ({lead.reviewCount || 0} reseñas)
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                                                    {lead.phone && (
-                                                        <span className="flex items-center gap-1">
-                                                            <Phone className="h-3 w-3" />
-                                                            {lead.phone}
-                                                        </span>
-                                                    )}
-                                                    {lead.rating && (
-                                                        <div className="flex items-center gap-1" title={`${lead.reviewCount || 0} reseñas`}>
-                                                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                                            <span className="font-medium text-foreground">{lead.rating}</span>
-                                                            <span className="text-xs text-muted-foreground">({lead.reviewCount || 0})</span>
-                                                            {lead.reviewCount && lead.reviewCount > 50 && (
-                                                                <span className="text-xs text-green-600 font-medium ml-1">Popular</span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    {lead.address && (
-                                                        <span className="flex items-center gap-1 truncate max-w-[200px]">
-                                                            <MapPin className="h-3 w-3" />
-                                                            {lead.address.substring(0, 40)}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-2 ml-4">
-                                            <div className="flex gap-2 justify-end">
-                                                {lead.website && (
-                                                    <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
-                                                        <a href={lead.website} target="_blank">
-                                                            <Globe className="h-4 w-4" />
-                                                        </a>
-                                                    </Button>
-                                                )}
-                                                {lead.phone && (
-                                                    <Button
-                                                        size="sm"
-                                                        className="h-8 bg-green-600 hover:bg-green-700 text-white"
-                                                        onClick={() => handleWhatsApp(lead)}
-                                                    >
-                                                        <MessageCircle className="h-4 w-4 lg:mr-1" />
-                                                        <span className="hidden lg:inline">WhatsApp</span>
-                                                    </Button>
-                                                )}
-                                                {/* Delete Button */}
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-red-50"
-                                                    onClick={() => handleDeleteLead(lead.placeId)}
-                                                    title="Eliminar de la lista"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-
-                            {sortedLeads.length === 0 && (
-                                <div className="p-8 text-center text-muted-foreground">
-                                    No hay resultados que coincidan con el filtro.
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-
-                    {/* Floating Action Bar */}
-                    {selectedLeads.size > 0 && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-foreground text-background px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 z-40 animate-in slide-in-from-bottom-4">
-                            <span className="font-medium whitespace-nowrap">{selectedLeads.size} seleccionados</span>
-                            <div className="h-4 w-px bg-background/20"></div>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => setShowReportModal(true)}
-                                className="font-semibold"
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Crear / Añadir a Reporte
+                            <Button variant="outline" size="sm" onClick={toggleAll}>
+                                {selectedLeads.size === leads.length ? "Deseleccionar" : "Seleccionar Todos"}
                             </Button>
                         </div>
-                    )}
-                </Card>
-            )}
-        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-3">
+                        {sortedLeads.map((lead, i) => {
+                            const score = getOpportunityScore(lead)
+                            const isHighOpportunity = score >= 2
+                            const isSelected = selectedLeads.has(lead.placeId)
+
+                            return (
+                                <div key={lead.placeId || i} className={`flex items-start justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors ${isSelected ? 'bg-primary/5 border-primary/50' : ''} ${isHighOpportunity && !isSelected ? 'bg-orange-50/50 border-orange-100' : ''}`}>
+                                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                                        {/* Checkbox */}
+                                        <div className="pt-1">
+                                            <input
+                                                type="checkbox"
+                                                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                                checked={isSelected}
+                                                onChange={() => toggleSelection(lead.placeId)}
+                                            />
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                <h3 className="font-medium truncate text-base">{lead.name}</h3>
+                                                {/* Badges */}
+                                                {!lead.website && (
+                                                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors border-transparent bg-red-100 text-red-700">
+                                                        Sin Sitio Web
+                                                    </span>
+                                                )}
+                                                {(lead.reviewCount || 0) < 10 && (
+                                                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors border-transparent bg-amber-100 text-amber-700">
+                                                        Invisible ({lead.reviewCount || 0} reseñas)
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                                                {lead.phone && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Phone className="h-3 w-3" />
+                                                        {lead.phone}
+                                                    </span>
+                                                )}
+                                                {lead.rating && (
+                                                    <div className="flex items-center gap-1" title={`${lead.reviewCount || 0} reseñas`}>
+                                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                                        <span className="font-medium text-foreground">{lead.rating}</span>
+                                                        <span className="text-xs text-muted-foreground">({lead.reviewCount || 0})</span>
+                                                        {lead.reviewCount && lead.reviewCount > 50 && (
+                                                            <span className="text-xs text-green-600 font-medium ml-1">Popular</span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {lead.address && (
+                                                    <span className="flex items-center gap-1 truncate max-w-[200px]">
+                                                        <MapPin className="h-3 w-3" />
+                                                        {lead.address.substring(0, 40)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2 ml-4">
+                                        <div className="flex gap-2 justify-end">
+                                            {lead.website && (
+                                                <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
+                                                    <a href={lead.website} target="_blank">
+                                                        <Globe className="h-4 w-4" />
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {lead.phone && (
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8 bg-green-600 hover:bg-green-700 text-white"
+                                                    onClick={() => handleWhatsApp(lead)}
+                                                >
+                                                    <MessageCircle className="h-4 w-4 lg:mr-1" />
+                                                    <span className="hidden lg:inline">WhatsApp</span>
+                                                </Button>
+                                            )}
+                                            {/* Delete Button */}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-red-50"
+                                                onClick={() => handleDeleteLead(lead.placeId)}
+                                                title="Eliminar de la lista"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+
+                        {sortedLeads.length === 0 && (
+                            <div className="p-8 text-center text-muted-foreground">
+                                No hay resultados que coincidan con el filtro.
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+
+                {/* Floating Action Bar */}
+                {selectedLeads.size > 0 && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-foreground text-background px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 z-40 animate-in slide-in-from-bottom-4">
+                        <span className="font-medium whitespace-nowrap">{selectedLeads.size} seleccionados</span>
+                        <div className="h-4 w-px bg-background/20"></div>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setShowReportModal(true)}
+                            className="font-semibold"
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Crear / Añadir a Reporte
+                        </Button>
+                    </div>
+                )}
+            </Card>
+        )
+    }
+        </div >
     )
 }

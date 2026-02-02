@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react"
 import { getLeads, SavedLead } from "@/app/actions/leads"
-import { markAsContacted } from "@/app/actions/scrape"
+import { markAsContacted, enrichLeadWithEmail } from "@/app/actions/scrape"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,7 @@ export default function LeadsPage() {
     const [search, setSearch] = useState("")
     const [filterStatus, setFilterStatus] = useState<'all' | 'contacted' | 'pending' | 'withEmail'>('all')
     const [copiedEmail, setCopiedEmail] = useState<string | null>(null)
+    const [enrichingId, setEnrichingId] = useState<string | null>(null)
 
     // WhatsApp Template
     const { template, setTemplate } = useWhatsAppTemplate()
@@ -80,6 +81,28 @@ export default function LeadsPage() {
         await navigator.clipboard.writeText(email)
         setCopiedEmail(email)
         setTimeout(() => setCopiedEmail(null), 2000)
+    }
+
+    const handleEnrich = async (lead: SavedLead) => {
+        if (!lead.website || enrichingId) return
+        setEnrichingId(lead.id)
+
+        try {
+            const result = await enrichLeadWithEmail(lead.placeId, lead.website)
+            if (result.success && result.email) {
+                // Update local state
+                setLeads(prev => prev.map(l =>
+                    l.id === lead.id ? { ...l, email: result.email } : l
+                ))
+            } else {
+                alert(result.error || "No se encontró email para este dominio")
+            }
+        } catch (error) {
+            console.error(error)
+            alert("Error al buscar email")
+        } finally {
+            setEnrichingId(null)
+        }
     }
 
     const handleWhatsApp = (lead: SavedLead) => {
@@ -318,6 +341,23 @@ export default function LeadsPage() {
                                                     Sin Web
                                                 </Badge>
                                             )}
+                                            {lead.website && !lead.email && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={enrichingId === lead.id}
+                                                    onClick={() => handleEnrich(lead)}
+                                                    className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                    title="Buscar Email en este sitio (3 créditos)"
+                                                >
+                                                    {enrichingId === lead.id ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                                    ) : (
+                                                        <Search className="h-3 w-3 mr-1" />
+                                                    )}
+                                                    Buscar Email
+                                                </Button>
+                                            )}
                                             {lead.mapsUrl && (
                                                 <a
                                                     href={lead.mapsUrl}
@@ -365,6 +405,6 @@ export default function LeadsPage() {
                     )}
                 </CardContent>
             </Card>
-        </div>
+        </div >
     )
 }

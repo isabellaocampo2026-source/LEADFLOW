@@ -24,6 +24,7 @@ export interface OutscraperOptions {
     limit?: number;
     skip?: number;
     existingIds?: Set<string>;
+    enrichment?: boolean; // New flag for email enrichment
 }
 
 interface OutscraperResult {
@@ -45,13 +46,22 @@ interface OutscraperResult {
     username?: string;
     owner_username?: string;
     full_name?: string;
+    // Enrichment fields
+    email_1?: string;
+    email_2?: string;
+    email_3?: string;
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
 }
 
 /**
  * Search Google Maps via Outscraper API.
+ * Supports standard scraping and enriched scraping (for emails).
  */
 export async function searchOutscraper(options: OutscraperOptions): Promise<Lead[]> {
-    const { category, city, limit = 30, skip = 0, existingIds = new Set() } = options;
+    const { category, city, limit = 30, skip = 0, existingIds = new Set(), enrichment = false } = options;
 
     const apiKey = process.env.OUTSCRAPER_API_KEY;
     if (!apiKey) {
@@ -59,14 +69,20 @@ export async function searchOutscraper(options: OutscraperOptions): Promise<Lead
     }
 
     const query = `${category} en ${city}`;
-    const url = new URL('https://api.app.outscraper.com/maps/search-v3');
+
+    // Select Endpoint based on enrichment flag
+    const baseUrl = enrichment
+        ? 'https://api.app.outscraper.com/maps/emails-and-contacts-v3'
+        : 'https://api.app.outscraper.com/maps/search-v3';
+
+    const url = new URL(baseUrl);
     url.searchParams.set('query', query);
     url.searchParams.set('limit', String(limit));
     url.searchParams.set('skip', String(skip));
     url.searchParams.set('language', 'es');
     url.searchParams.set('async', 'false');
 
-    console.log(`🔍 Outscraper: Searching "${query}" (limit: ${limit})`);
+    console.log(`🔍 Outscraper: Searching "${query}" (limit: ${limit}, enrichment: ${enrichment})`);
 
     const response = await fetch(url.toString(), {
         headers: {
@@ -100,14 +116,18 @@ export async function searchOutscraper(options: OutscraperOptions): Promise<Lead
             continue;
         }
 
-        // Only include leads with phone or email (since email is now valuable)
-        if (!r.phone && !r.email && (!r.emails || r.emails.length === 0)) continue;
+        // Determine email (check all possible fields)
+        const foundEmail = r.email || (r.emails && r.emails.length > 0 ? r.emails[0] : undefined) || r.email_1 || r.email_2;
+
+        // Standard filter: Only include leads with contact info
+        // If enriched, we accept just website if we found no email (unlikely if enriched worked)
+        if (!r.phone && !foundEmail && (!r.emails || r.emails.length === 0)) continue;
 
         leads.push({
             placeId: r.place_id,
             name: r.name,
             phone: r.phone,
-            email: r.email || (r.emails && r.emails.length > 0 ? r.emails[0] : undefined),
+            email: foundEmail,
             address: r.full_address || '',
             rating: r.rating,
             reviewCount: r.reviews,
@@ -118,6 +138,43 @@ export async function searchOutscraper(options: OutscraperOptions): Promise<Lead
 
     console.log(`✅ Outscraper: ${leads.length} new leads with contaact (${skipped} skipped as duplicates)`);
     return leads;
+}
+
+/**
+ * Enrich a domain to find emails.
+ * Uses Outscraper Domain Emails & Contacts API.
+ */
+export async function enrichDomainEmails(domain: string): Promise<string | null> {
+    const apiKey = process.env.OUTSCRAPER_API_KEY;
+    if (!apiKey) throw new Error('OUTSCRAPER_API_KEY not configured');
+
+    const url = new URL('https://api.app.outscraper.com/emails/search');
+    url.searchParams.set('query', domain);
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('async', 'false');
+
+    console.log(`🔍 Outscraper Email Enrichment: "${domain}"`);
+
+    const response = await fetch(url.toString(), {
+        headers: { 'X-API-KEY': apiKey }
+    });
+
+    if (!response.ok) {
+        console.error(`Enrichment failed for ${domain}: ${response.status}`);
+        return null;
+    }
+
+    const data = await response.json();
+    const results = data?.data?.[0]; // Array of results for the query
+
+    if (results && results.length > 0) {
+        // Extract first found email
+        const result = results[0];
+        const email = result.email_1 || result.email_2 || (result.emails && result.emails[0]);
+        return email || null;
+    }
+
+    return null;
 }
 
 /**
