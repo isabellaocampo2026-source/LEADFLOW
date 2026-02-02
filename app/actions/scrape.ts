@@ -1,6 +1,7 @@
 'use server'
 
 import { searchOutscraper, searchInstagram, Lead } from "@/lib/scraper/outscraper"
+import { searchPeopleByDomain } from "@/lib/enrichment/apollo"
 import { supabase } from "@/lib/supabase"
 
 export interface ScrapeResult {
@@ -246,16 +247,27 @@ export async function enrichLeadWithEmail(placeId: string, website: string) {
         let domain = website.replace(/^(?:https?:\/\/)?(?:www\.)?/i, "").split('/')[0];
         if (!domain) return { success: false, error: "Dominio inválido" };
 
-        const { enrichDomainEmails } = await import("@/lib/scraper/outscraper");
+        // 2. Try Apollo (Premium - Owner/CEO)
+        let email: string | undefined | null = null;
+        let source = 'outscraper';
+        let foundPerson = null;
 
-        // 2. Call Outscraper Enrichment
-        const email = await enrichDomainEmails(domain);
-
-        if (!email) {
-            return { success: false, error: "No se encontró email" };
+        try {
+            foundPerson = await searchPeopleByDomain(domain);
+            if (foundPerson?.email) {
+                email = foundPerson.email;
+                source = `Apollo (${foundPerson.title})`;
+            }
+        } catch (e) {
+            console.error("Apollo search failed:", e);
         }
 
-        // 3. Update DB
+        // 3. Strict Mode: No fallback to generic scraper
+        if (!email) {
+            return { success: false, error: "No se encontró CEO/Dueño en Apollo" };
+        }
+
+        // 4. Update DB
         const { error } = await supabase
             .from('business_leads')
             .update({ email })
@@ -263,7 +275,7 @@ export async function enrichLeadWithEmail(placeId: string, website: string) {
 
         if (error) throw error;
 
-        return { success: true, email };
+        return { success: true, email, source, person: foundPerson };
 
     } catch (error: any) {
         console.error('Enrichment failed:', error);
