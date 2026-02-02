@@ -12,6 +12,7 @@ export interface SavedLead {
     city?: string;
     category?: string;
     rating?: number;
+    reviewCount?: number;
     website?: string;
     mapsUrl?: string;
     contacted: boolean;
@@ -47,6 +48,7 @@ export async function getLeads(): Promise<GetLeadsResult> {
             city: row.city,
             category: row.category,
             rating: row.rating,
+            reviewCount: row.review_count,
             website: row.website,
             mapsUrl: row.maps_url,
             contacted: row.contacted,

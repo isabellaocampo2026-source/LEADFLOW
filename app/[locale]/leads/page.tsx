@@ -260,16 +260,43 @@ export default function LeadsPage() {
                                                     {lead.email}
                                                 </span>
                                             )}
-                                            {lead.rating && (
+                                            {(lead.rating || lead.reviewCount) && (
                                                 <span className="flex items-center gap-1">
                                                     <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                                    {lead.rating}
+                                                    {lead.rating || '-'}
+                                                    {lead.reviewCount !== undefined && (
+                                                        <span className="text-muted-foreground">({lead.reviewCount})</span>
+                                                    )}
                                                 </span>
                                             )}
                                             {lead.category && (
                                                 <Badge variant="secondary" className="text-xs">
                                                     {lead.category}
                                                 </Badge>
+                                            )}
+                                            {lead.website ? (
+                                                <a
+                                                    href={lead.website}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-blue-600 hover:underline text-xs truncate max-w-[150px]"
+                                                >
+                                                    🌐 Web
+                                                </a>
+                                            ) : (
+                                                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                                                    Sin Web
+                                                </Badge>
+                                            )}
+                                            {lead.mapsUrl && (
+                                                <a
+                                                    href={lead.mapsUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-green-600 hover:underline text-xs"
+                                                >
+                                                    📍 Maps
+                                                </a>
                                             )}
                                         </div>
                                     </div>
