@@ -18,9 +18,15 @@ import {
     Star,
     Mail,
     Copy,
-    Check
+    Check,
+    MessageSquare,
+    Send
 } from "lucide-react"
 import { useWhatsAppTemplate } from "@/lib/hooks/use-whatsapp-template"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { sendSMS } from "@/app/actions/sms"
 
 export default function LeadsPage() {
     const [leads, setLeads] = useState<SavedLead[]>([])
@@ -38,6 +44,11 @@ export default function LeadsPage() {
     const [previewOpen, setPreviewOpen] = useState(false)
     const [previewMessage, setPreviewMessage] = useState("")
     const [selectedLead, setSelectedLead] = useState<SavedLead | null>(null)
+
+    // SMS Modal
+    const [smsOpen, setSmsOpen] = useState(false)
+    const [smsMessage, setSmsMessage] = useState("")
+    const [isSendingSms, setIsSendingSms] = useState(false)
 
     useEffect(() => {
         loadLeads()
@@ -132,6 +143,43 @@ export default function LeadsPage() {
             l.placeId === selectedLead.placeId ? { ...l, contacted: true } : l
         ))
         setPreviewOpen(false)
+    }
+
+    const handleSMS = (lead: SavedLead) => {
+        setSelectedLead(lead)
+        // Default SMS template
+        let message = `Hola ${lead.name.split(' ')[0]}, vi tu negocio en ${lead.city || 'Google'}. Me ayudas con una duda?`
+        setSmsMessage(message)
+        setSmsOpen(true)
+    }
+
+    const sendSmsAction = async () => {
+        if (!selectedLead?.phone || !smsMessage.trim()) return
+
+        // Clean phone for Twilio (keep + and digits)
+        const cleanPhone = selectedLead.phone.replace(/[^+\d]/g, '')
+
+        setIsSendingSms(true)
+        try {
+            const result = await sendSMS(cleanPhone, smsMessage)
+
+            if (result.success) {
+                // Mark as contacted locally
+                setLeads(prev => prev.map(l =>
+                    l.placeId === selectedLead.placeId ? { ...l, contacted: true } : l
+                ))
+                // Mark in DB
+                await markAsContacted(selectedLead.placeId)
+                setSmsOpen(false)
+            } else {
+                alert("Error al enviar SMS: " + result.error)
+            }
+        } catch (error: any) {
+            console.error(error)
+            alert("Error al enviar SMS: " + error.message)
+        } finally {
+            setIsSendingSms(false)
+        }
     }
 
     const handleEmail = (lead: SavedLead) => {
@@ -373,14 +421,24 @@ export default function LeadsPage() {
 
                                     <div className="ml-4 flex flex-col gap-2">
                                         {lead.phone && !lead.contacted && (
-                                            <Button
-                                                size="sm"
-                                                className="bg-green-600 hover:bg-green-700 text-white w-full"
-                                                onClick={() => handleWhatsApp(lead)}
-                                            >
-                                                <MessageCircle className="h-4 w-4 mr-1" />
-                                                WhatsApp
-                                            </Button>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                                                    onClick={() => handleWhatsApp(lead)}
+                                                >
+                                                    <MessageCircle className="h-4 w-4 mr-1" />
+                                                    WA
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
+                                                    onClick={() => handleSMS(lead)}
+                                                >
+                                                    <MessageSquare className="h-4 w-4 mr-1" />
+                                                    SMS
+                                                </Button>
+                                            </div>
                                         )}
                                         {lead.email && !lead.contacted && (
                                             <Button
@@ -405,6 +463,44 @@ export default function LeadsPage() {
                     )}
                 </CardContent>
             </Card>
-        </div >
+
+            <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Enviar SMS a {selectedLead?.name}</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="message">Mensaje</Label>
+                            <Textarea
+                                id="message"
+                                value={smsMessage}
+                                onChange={(e) => setSmsMessage(e.target.value)}
+                                rows={4}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Costo aproximado: $0.01 USD. Usando Twilio.
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSmsOpen(false)}>Cancelar</Button>
+                        <Button onClick={sendSmsAction} disabled={isSendingSms}>
+                            {isSendingSms ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Enviando...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Enviar SMS
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     )
 }
