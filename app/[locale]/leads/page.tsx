@@ -16,7 +16,9 @@ import {
     CheckCircle2,
     Settings,
     Star,
-    Mail
+    Mail,
+    Copy,
+    Check
 } from "lucide-react"
 import { useWhatsAppTemplate } from "@/lib/hooks/use-whatsapp-template"
 
@@ -24,7 +26,8 @@ export default function LeadsPage() {
     const [leads, setLeads] = useState<SavedLead[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState("")
-    const [filterStatus, setFilterStatus] = useState<'all' | 'contacted' | 'pending'>('all')
+    const [filterStatus, setFilterStatus] = useState<'all' | 'contacted' | 'pending' | 'withEmail'>('all')
+    const [copiedEmail, setCopiedEmail] = useState<string | null>(null)
 
     // WhatsApp Template
     const { template, setTemplate } = useWhatsAppTemplate()
@@ -66,11 +69,18 @@ export default function LeadsPage() {
             const matchesStatus =
                 filterStatus === 'all' ||
                 (filterStatus === 'contacted' && lead.contacted) ||
-                (filterStatus === 'pending' && !lead.contacted)
+                (filterStatus === 'pending' && !lead.contacted) ||
+                (filterStatus === 'withEmail' && lead.email)
 
             return matchesSearch && matchesStatus
         })
     }, [leads, search, filterStatus])
+
+    const copyEmail = async (email: string) => {
+        await navigator.clipboard.writeText(email)
+        setCopiedEmail(email)
+        setTimeout(() => setCopiedEmail(null), 2000)
+    }
 
     const handleWhatsApp = (lead: SavedLead) => {
         if (!lead.phone) return
@@ -217,6 +227,15 @@ export default function LeadsPage() {
                     >
                         Contactados
                     </Button>
+                    <Button
+                        variant={filterStatus === 'withEmail' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setFilterStatus('withEmail')}
+                        className={filterStatus === 'withEmail' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                    >
+                        <Mail className="h-3 w-3 mr-1" />
+                        Con Email
+                    </Button>
                 </div>
             </div>
 
@@ -257,7 +276,18 @@ export default function LeadsPage() {
                                             {lead.email && (
                                                 <span className="flex items-center gap-1 text-blue-600">
                                                     <Mail className="h-3 w-3" />
-                                                    {lead.email}
+                                                    <span className="truncate max-w-[150px]">{lead.email}</span>
+                                                    <button
+                                                        onClick={() => copyEmail(lead.email!)}
+                                                        className="p-0.5 hover:bg-blue-100 rounded transition-colors"
+                                                        title="Copiar email"
+                                                    >
+                                                        {copiedEmail === lead.email ? (
+                                                            <Check className="h-3 w-3 text-green-600" />
+                                                        ) : (
+                                                            <Copy className="h-3 w-3" />
+                                                        )}
+                                                    </button>
                                                 </span>
                                             )}
                                             {(lead.rating || lead.reviewCount) && (
