@@ -70,10 +70,9 @@ export async function searchOutscraper(options: OutscraperOptions): Promise<Lead
 
     const query = `${category} en ${city}`;
 
-    // Select Endpoint based on enrichment flag
-    const baseUrl = enrichment
-        ? 'https://api.app.outscraper.com/maps/emails-and-contacts-v3'
-        : 'https://api.app.outscraper.com/maps/search-v3';
+    // Use standard Google Maps Search endpoint
+    // Enrichment is passed as a parameter, not a separate endpoint
+    const baseUrl = 'https://api.app.outscraper.com/maps/search-v3';
 
     const url = new URL(baseUrl);
     url.searchParams.set('query', query);
@@ -81,6 +80,11 @@ export async function searchOutscraper(options: OutscraperOptions): Promise<Lead
     url.searchParams.set('skip', String(skip));
     url.searchParams.set('language', 'es');
     url.searchParams.set('async', 'false');
+
+    // Enable email/contacts enrichment if requested
+    if (enrichment) {
+        url.searchParams.set('enrichment', 'emails_and_contacts');
+    }
 
     console.log(`🔍 Outscraper: Searching "${query}" (limit: ${limit}, enrichment: ${enrichment})`);
 
