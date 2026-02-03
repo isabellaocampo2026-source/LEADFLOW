@@ -3,6 +3,7 @@
 import { searchOutscraper, searchInstagram, Lead } from "@/lib/scraper/outscraper"
 import { searchPeopleByDomain } from "@/lib/enrichment/apollo"
 import { supabase } from "@/lib/supabase"
+import { BusinessLead } from "@/lib/scraper/types"
 
 export interface ScrapeResult {
     success: boolean

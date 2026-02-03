@@ -20,17 +20,22 @@ import {
     MessageCircle,
     X,
     Check,
-    Search
+    Search,
+    Mail
 } from "lucide-react"
 import Link from "next/link"
 import { useLocale } from "next-intl"
 import { generateReportHTML } from "@/lib/export/html-generator"
 import { useWhatsAppTemplate } from "@/lib/hooks/use-whatsapp-template"
+import { enrichLead } from "@/app/actions/enrich"
+import { useToast } from "@/components/ui/use-toast"
+
 
 export default function ReportDetailPage() {
     const params = useParams()
     const locale = useLocale()
     const reportId = params.id as string
+    const { toast } = useToast()
 
     const [report, setReport] = useState<ReportWithLeads | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -57,9 +62,47 @@ export default function ReportDetailPage() {
     const [previewOpen, setPreviewOpen] = useState(false)
     const [previewMessage, setPreviewMessage] = useState("")
 
+    // Enrichment State
+    const [enrichingLeads, setEnrichingLeads] = useState<Set<string>>(new Set())
+
     useEffect(() => {
         loadReport()
     }, [reportId])
+
+    async function handleEnrichLead(lead: BusinessLead) {
+        if (!lead.website || !lead.id) return
+
+        setEnrichingLeads(prev => new Set(prev).add(lead.id!))
+        toast.info(`Buscando emails para ${lead.name}...`)
+
+        try {
+            const result = await enrichLead(lead.id, lead.website)
+
+            if (result.success) {
+                const count = result.savedCount || 0
+                if (count > 0) {
+                    toast.success(`¡Encontrados ${count} emails nuevos!`)
+                } else {
+                    toast.warning("No se encontraron emails públicos para este dominio.")
+                }
+                loadReport() // Reload to show new data
+            } else {
+                toast({
+                    title: "Error al buscar",
+                    description: `${result.error} ${result.debugInfo ? `(${result.debugInfo})` : ''}`,
+                    variant: "destructive"
+                })
+            }
+        } catch (error) {
+            toast.error("Error de conexión")
+        } finally {
+            setEnrichingLeads(prev => {
+                const next = new Set(prev)
+                next.delete(lead.id!)
+                return next
+            })
+        }
+    }
 
     async function loadReport() {
         setIsLoading(true)
@@ -458,6 +501,52 @@ export default function ReportDetailPage() {
                                                 <MapPin className="h-3 w-3 shrink-0" />
                                                 <span className="truncate">{lead.city || lead.address}</span>
                                             </div>
+
+                                            {/* Found Emails Section */}
+                                            {lead.additional_emails && lead.additional_emails.length > 0 && (
+                                                <div className="mt-2 pt-2 border-t border-dashed">
+                                                    <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1">
+                                                        <Mail className="h-3 w-3" /> Emails Encontrados:
+                                                    </p>
+                                                    <div className="flex flex-col gap-1">
+                                                        {lead.additional_emails.map((email, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between bg-primary/5 px-2 py-1 rounded text-xs group">
+                                                                <span className="select-all block truncate max-w-[180px]" title={email}>{email}</span>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(email);
+                                                                        toast({ description: "Email copiado al portapapeles" });
+                                                                    }}
+                                                                >
+                                                                    <span className="sr-only">Copiar</span>
+                                                                    <span className="text-[10px]">📋</span>
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Enrich Action (If website exists & no emails found yet or user wants to retry) */}
+                                            {lead.website && (!lead.additional_emails || lead.additional_emails.length === 0) && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full mt-2 h-7 text-xs bg-muted/30 hover:bg-primary/5 border-dashed"
+                                                    onClick={() => handleEnrichLead(lead)}
+                                                    disabled={enrichingLeads.has(lead.id!)}
+                                                >
+                                                    {enrichingLeads.has(lead.id!) ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                                    ) : (
+                                                        <Search className="h-3 w-3 mr-1" />
+                                                    )}
+                                                    {enrichingLeads.has(lead.id!) ? "Buscando..." : "Buscar Emails Corporativos"}
+                                                </Button>
+                                            )}
                                         </div>
 
                                         <div className="flex items-center justify-between mt-3 pt-3 border-t">

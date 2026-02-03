@@ -2,27 +2,7 @@
 
 import { supabase } from "@/lib/supabase"
 
-// Inline type since types.ts was removed for simplicity
-export interface BusinessLead {
-    id?: string;
-    source: 'google_maps';
-    placeId: string;
-    name: string;
-    category?: string;
-    phone?: string;
-    email?: string;
-    website?: string;
-    address?: string;
-    city?: string;
-    rating?: number;
-    reviewCount?: number;
-    priceLevel?: string;
-    mapsUrl?: string;
-    scrapedAt: Date;
-    contacted: boolean;
-    notes?: string;
-    hasWhatsapp?: boolean;
-}
+import { BusinessLead } from "@/lib/scraper/types"
 
 // Types
 export interface Report {
