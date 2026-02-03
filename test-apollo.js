@@ -22,28 +22,28 @@ if (!apiKey) {
     process.exit(1);
 }
 
-const domain = "stripe.com"; // Test with a known tech company
+const domain = "stripe.com";
 
 const data = JSON.stringify({
     q_organization_domains: domain,
     person_titles: ["CEO", "Founder", "Owner"],
     page: 1,
-    per_page: 3
+    per_page: 1
 });
 
 const options = {
     hostname: 'api.apollo.io',
-    path: '/v1/mixed_people/search',
+    path: '/v1/mixed_people/search', // Trying mixed_people/search endpoint
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache',
-        'X-Api-Key': apiKey
+        'X-Api-Key': apiKey,
+        'User-Agent': 'LeadScraper/1.0'
     }
 };
 
-console.log(`🚀 Testing Apollo API for domain: ${domain}`);
-console.log(`🔑 Key length: ${apiKey.length}`);
+console.log(`🚀 Testing Apollo API Key: ${apiKey.substring(0, 5)}...`);
 
 const req = https.request(options, (res) => {
     let responseBody = '';
@@ -53,23 +53,28 @@ const req = https.request(options, (res) => {
     });
 
     res.on('end', () => {
-        console.log(`\n📡 Status Code: ${res.statusCode}`);
+        console.log(`\n📡 Status: ${res.statusCode} ${res.statusMessage}`);
+        // console.log("Headers:", JSON.stringify(res.headers, null, 2));
+
         try {
             const json = JSON.parse(responseBody);
-            // console.log("Full Response:", JSON.stringify(json, null, 2)); 
+            if (res.statusCode !== 200) {
+                console.log("\n❌ API ERROR RESPONSE:");
+                console.log(JSON.stringify(json, null, 2));
 
-            if (json.people && json.people.length > 0) {
-                console.log(`✅ Found ${json.people.length} people.`);
-                json.people.forEach(p => {
-                    console.log(`   - ${p.first_name} ${p.last_name} (${p.title}): ${p.email}`);
-                });
+                if (res.statusCode === 403) {
+                    console.log("\n⚠️ CHECK: Allowed Scopes? API enabled in Settings? Trial limitations?");
+                }
             } else {
-                console.log("⚠️ No people found via API.");
-                if (json.error_message) console.log("Error:", json.error_message);
+                console.log("\n✅ SUCCESS!");
+                console.log(`Found: ${json.people?.length || 0} results.`);
+                if (json.people && json.people.length > 0) {
+                    const p = json.people[0];
+                    console.log(`Sample: ${p.first_name} ${p.last_name} - ${p.email || 'No Email'}`);
+                }
             }
         } catch (e) {
-            console.error("❌ Parse Error:", e);
-            console.log("Raw Body:", responseBody);
+            console.error("❌ Parse Error. Raw Body:", responseBody);
         }
     });
 });

@@ -257,6 +257,32 @@ export async function enrichLeadWithEmail(placeId: string, website: string) {
             if (foundPerson?.email) {
                 email = foundPerson.email;
                 source = `Apollo (${foundPerson.title})`;
+
+                // --- BRIDGE: Auto-Add to Contacts VIP ---
+                try {
+                    const { addContact } = await import("@/app/actions/contacts");
+                    const { supabase } = await import("@/lib/supabase");
+                    // Fetch full lead details to populate Contact
+                    const { data: leadData } = await supabase.from('business_leads').select('*').eq('place_id', placeId).single();
+
+                    if (leadData) {
+                        await addContact({
+                            email: foundPerson.email,
+                            first_name: foundPerson.first_name,
+                            last_name: foundPerson.last_name || '',
+                            company_name: leadData.name,
+                            job_title: foundPerson.title,
+                            website: website,
+                            city: leadData.city,
+                            specialty: leadData.category || 'General',
+                            personal_note: `Enriched via Apollo (Source: ${website})`,
+                            source: 'apollo_auto'
+                        });
+                        console.log("✅ Bridge: Promoted to Contacts VIP");
+                    }
+                } catch (err) {
+                    console.error("Bridge Error:", err);
+                }
             }
         } catch (e) {
             console.error("Apollo search failed:", e);
