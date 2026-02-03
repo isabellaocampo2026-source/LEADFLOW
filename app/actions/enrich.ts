@@ -62,28 +62,37 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
         let errors: string[] = []
 
         // A. Priority 1: Hunter.io (Best for Decision Makers)
-        console.log("Checking Hunter.io...")
+        console.log("Checking Hunter.io (Sniper Mode: Personal Only)...")
         const hunterResponse = await hunter.findEmailsForDomain(domain)
-        if (hunterResponse.success && hunterResponse.emails.length > 0) {
-            console.log(`✅ Hunter found ${hunterResponse.emails.length} emails for ${domain}`)
-            foundEmails = hunterResponse.emails.map(e => e.value)
-            source = 'hunter'
-            richData = hunterResponse.emails
+
+        if (hunterResponse.success) {
+            // STRICT FILTER: Only 'personal' emails
+            // We ignore 'generic' (info@, sales@) as requested by user
+            const personalEmails = hunterResponse.emails.filter(e => e.type === 'personal')
+
+            if (personalEmails.length > 0) {
+                console.log(`✅ Hunter found ${personalEmails.length} PERSONAL emails for ${domain}`)
+                foundEmails = personalEmails.map(e => e.value)
+                source = 'hunter'
+                richData = personalEmails
+            } else {
+                // If we found emails but none were personal
+                if (hunterResponse.emails.length > 0) {
+                    console.log(`⚠️ Hunter found ${hunterResponse.emails.length} emails, but ALL were generic. Ignoring.`)
+                    errors.push("Solo se encontraron emails genéricos (Ignorados por política de calidad)")
+                } else {
+                    console.log(`⚠️ Hunter found 0 emails.`)
+                    errors.push(hunterResponse.error || "No data in Hunter")
+                }
+            }
         } else {
             if (hunterResponse.error) errors.push(`Hunter: ${hunterResponse.error}`)
-            console.log(`⚠️ Hunter empty/failed for ${domain}. Falling back to Scraper...`)
-
-            // B. Priority 2: Web Scraper (Free, broad coverage)
-            const scrapeResult = await scraper.scrapeEmailsForDomain(domain)
-            if (scrapeResult.success && scrapeResult.emails.length > 0) {
-                foundEmails = scrapeResult.emails
-                source = 'scraper'
-                console.log(`✅ Scraper found ${foundEmails.length} emails for ${domain}`)
-            } else {
-                errors.push(`Scraper: ${scrapeResult.error || 'Empty'}`)
-                console.log(`⚠️ Scraper empty for ${domain}.`)
-            }
+            console.log(`⚠️ Hunter API failed for ${domain}.`)
         }
+
+        // B. SCRAER FALLBACK REMOVED
+        // User requested high quality only. If Hunter fails, we return empty.
+        // const scrapeResult = await scraper.scrapeEmailsForDomain(domain) ... (REMOVED)
 
         if (foundEmails.length === 0) {
             return {
