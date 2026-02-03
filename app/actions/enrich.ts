@@ -26,14 +26,23 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
         }
 
         // 1. Clean domain
-        // Remove protocol (http/s), www, and get the hostname
-        let domain = website.toLowerCase()
-            .replace(/^(?:https?:\/\/)?(?:www\.)?/i, "")
-            .split('/')[0]
+        let domain = "";
+        try {
+            // Ensure protocol exists for URL parsing
+            const urlStr = website.startsWith('http') ? website : `https://${website}`;
+            const url = new URL(urlStr);
+            domain = url.hostname;
+        } catch (e) {
+            // Fallback for weird strings
+            domain = website.toLowerCase().split('/')[0];
+        }
+
+        // Remove www. reference
+        domain = domain.replace(/^www\./i, "");
 
         // Basic domain validation
-        if (!domain.includes('.')) {
-            return { success: false, error: "Invalid domain format" }
+        if (!domain.includes('.') || domain.length < 4) {
+            return { success: false, error: "Invalid domain format", debugInfo: `Input: ${website}, Parsed: ${domain}` }
         }
 
         console.log(`🔍 Enriching lead ${leadId} for domain: ${domain}`)
