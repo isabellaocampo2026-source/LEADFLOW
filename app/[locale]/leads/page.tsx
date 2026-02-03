@@ -68,11 +68,9 @@ export default function LeadsPage() {
     const [copiedEmail, setCopiedEmail] = useState<string | null>(null)
     const [enrichingId, setEnrichingId] = useState<string | null>(null)
 
-    // Edit Email Modal
-    const [editOpen, setEditOpen] = useState(false)
-    const [editingLead, setEditingLead] = useState<SavedLead | null>(null)
-    const [newEmail, setNewEmail] = useState("")
-    const [isSaving, setIsSaving] = useState(false)
+    // Inline Edit State
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [editValue, setEditValue] = useState("")
 
     // WhatsApp Template
     const { template, setTemplate } = useWhatsAppTemplate()
@@ -149,6 +147,46 @@ export default function LeadsPage() {
         }
     }
 
+    const startEditing = (lead: SavedLead) => {
+        setEditingId(lead.id)
+        setEditValue(lead.email || "")
+    }
+
+    const saveInlineEmail = async (id: string, newEmail: string) => {
+        // If unchanged, just close
+        const current = leads.find(l => l.id === id)?.email || ""
+        if (newEmail.trim() === current) {
+            setEditingId(null)
+            return
+        }
+
+        // Optimistic update
+        setLeads(prev => prev.map(l =>
+            l.id === id ? { ...l, email: newEmail } : l
+        ))
+        setEditingId(null) // Close immediately for speed
+
+        try {
+            const success = await updateLead(id, { email: newEmail })
+            if (success) {
+                toast({ title: "Guardado", description: "Email actualizado." })
+            } else {
+                // Revert if failed (optional, but good UX)
+                toast({ title: "Error", description: "No se guardó el cambio.", variant: "destructive" })
+            }
+        } catch (e) {
+            toast({ title: "Error", description: "Fallo de conexión.", variant: "destructive" })
+        }
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
+        if (e.key === 'Enter') {
+            saveInlineEmail(id, editValue)
+        } else if (e.key === 'Escape') {
+            setEditingId(null)
+        }
+    }
+
     const handleWhatsApp = (lead: SavedLead) => {
         if (!lead.phone) return
 
@@ -175,33 +213,6 @@ export default function LeadsPage() {
             l.placeId === selectedLead.placeId ? { ...l, contacted: true } : l
         ))
         setPreviewOpen(false)
-    }
-
-    const startEditEmail = (lead: SavedLead) => {
-        setEditingLead(lead)
-        setNewEmail(lead.email || "")
-        setEditOpen(true)
-    }
-
-    const saveEmail = async () => {
-        if (!editingLead) return
-        setIsSaving(true)
-        try {
-            const success = await updateLead(editingLead.id, { email: newEmail })
-            if (success) {
-                setLeads(prev => prev.map(l =>
-                    l.id === editingLead.id ? { ...l, email: newEmail } : l
-                ))
-                toast({ title: "Guardado", description: "Email actualizado correctamente." })
-                setEditOpen(false)
-            } else {
-                toast({ title: "Error", description: "No se pudo guardar.", variant: "destructive" })
-            }
-        } catch (e) {
-            toast({ title: "Error", description: "Falló la actualización.", variant: "destructive" })
-        } finally {
-            setIsSaving(false)
-        }
     }
 
     const handleExport = () => {
@@ -249,33 +260,6 @@ export default function LeadsPage() {
                     </Button>
                 </div>
             </div>
-
-            {/* Editing Dialog */}
-            <Dialog open={editOpen} onOpenChange={setEditOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Editar Email</DialogTitle>
-                        <DialogDescription>
-                            Añade o corrige el email para <b>{editingLead?.name}</b>.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Label>Email</Label>
-                        <Input
-                            value={newEmail}
-                            onChange={e => setNewEmail(e.target.value)}
-                            placeholder="ejemplo@empresa.com"
-                            onKeyDown={e => e.key === 'Enter' && saveEmail()}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
-                        <Button onClick={saveEmail} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : "Guardar"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* Template Settings */}
             {showSettings && (
@@ -332,16 +316,33 @@ export default function LeadsPage() {
 
                                         {/* Meta Row */}
                                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                                            {/* Email Section (Editable) */}
-                                            <div
-                                                className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors ${lead.email ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                                                onClick={() => startEditEmail(lead)}
-                                                title="Clic para editar email"
-                                            >
-                                                <Mail className="h-3 w-3" />
-                                                <span className="font-medium">{lead.email || "Añadir Email"}</span>
-                                                <Pencil className="h-3 w-3 opacity-50 ml-1" />
-                                            </div>
+                                            {/* Email Section (Inline Edit) */}
+                                            {editingId === lead.id ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Mail className="h-3 w-3 text-blue-600" />
+                                                    <Input
+                                                        autoFocus
+                                                        value={editValue}
+                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        onKeyDown={(e) => handleKeyDown(e, lead.id)}
+                                                        onBlur={() => saveInlineEmail(lead.id, editValue)}
+                                                        className="h-6 w-[200px] text-xs px-1 py-0"
+                                                        placeholder="Pegar email aquí..."
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors border ${lead.email ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}
+                                                    onClick={() => startEditing(lead)}
+                                                    title="Clic para editar"
+                                                >
+                                                    <Mail className="h-3 w-3" />
+                                                    <span className="font-medium min-w-[20px]">
+                                                        {lead.email || "Click para añadir email"}
+                                                    </span>
+                                                    <Pencil className="h-3 w-3 opacity-30 ml-1" />
+                                                </div>
+                                            )}
 
                                             {lead.phone && (
                                                 <span className="flex items-center gap-1">
@@ -359,15 +360,15 @@ export default function LeadsPage() {
                                             )}
 
                                             {/* Hybrid Algo Button */}
-                                            {lead.website && !lead.email && (
+                                            {lead.website && !lead.email && !editingId && (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     disabled={enrichingId === lead.id}
                                                     onClick={(e) => { e.stopPropagation(); handleEnrich(lead); }}
-                                                    className="h-5 px-2 text-[10px] text-purple-600 bg-purple-50 hover:bg-purple-100"
+                                                    className="h-5 px-2 text-[10px] text-purple-600 bg-purple-50 hover:bg-purple-100 ml-2"
                                                 >
-                                                    {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "🤖 Buscar Email"}
+                                                    {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "🤖 Buscar"}
                                                 </Button>
                                             )}
                                         </div>
