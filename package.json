@@ -23,6 +23,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "^2.91.1",
     "@types/papaparse": "^5.5.2",
+    "cheerio": "^1.2.0",
     "chromium-bidi": "^13.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -1,8 +1,11 @@
 
 const https = require('https');
 
+const domain = process.argv[2] || 'airbnb.com';
+console.log(`Testing domain: ${domain}`);
+
 const data = JSON.stringify({
-    domain: 'airbnb.com'
+    domain: domain
 });
 
 const options = {

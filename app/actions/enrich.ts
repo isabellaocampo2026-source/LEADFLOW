@@ -1,10 +1,12 @@
 'use server'
 
 import { AnyMailFinderService } from "@/lib/services/anymailfinder"
+import { EmailScraperService } from "@/lib/services/email-scraper"
 import { supabase } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 
 const enricher = new AnyMailFinderService()
+const scraper = new EmailScraperService()
 
 export interface EnrichResult {
     success: boolean
@@ -12,6 +14,7 @@ export interface EnrichResult {
     savedCount?: number
     error?: string
     debugInfo?: string // For UI debugging
+    source?: 'scraper' | 'api'
 }
 
 /**
@@ -47,21 +50,37 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
 
         console.log(`🔍 Enriching lead ${leadId} for domain: ${domain}`)
 
-        // 2. Call AnyMailFinder Service
-        const result = await enricher.findEmailsForDomain(domain)
+        // 2. Strategy: Try Scraper First
+        let foundEmails: string[] = []
+        let source: 'scraper' | 'api' = 'scraper'
+        let scraperError = ""
 
-        if (!result.success) {
-            return {
-                success: false,
-                error: result.error || "Failed to find emails",
-                debugInfo: `Domain parsed: ${domain}. API Error: ${result.error}`
+        // A. Run Scraper
+        const scrapeResult = await scraper.scrapeEmailsForDomain(domain)
+        if (scrapeResult.success && scrapeResult.emails.length > 0) {
+            foundEmails = scrapeResult.emails
+            console.log(`✅ Scraper found ${foundEmails.length} emails for ${domain}`)
+        } else {
+            console.log(`⚠️ Scraper empty for ${domain}. Error: ${scrapeResult.error || 'None'}`)
+            scraperError = scrapeResult.error || "No emails on web"
+
+            // B. Fallback to API (optional, keeping it as backup if user wants)
+            /*
+            const result = await enricher.findEmailsForDomain(domain)
+            if (result.success && result.emails.length > 0) {
+                foundEmails = result.emails
+                source = 'api'
             }
+            */
         }
 
-        const foundEmails = result.emails || []
-
         if (foundEmails.length === 0) {
-            return { success: true, emails: [], savedCount: 0 }
+            return {
+                success: true,
+                emails: [],
+                savedCount: 0,
+                debugInfo: `Scraper: ${scraperError}`
+            }
         }
 
         // 3. Save to Database
@@ -85,7 +104,9 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
         return {
             success: true,
             emails: foundEmails,
-            savedCount: foundEmails.length
+            savedCount: foundEmails.length,
+            source,
+            debugInfo: `Source: ${source}`
         }
 
     } catch (error: any) {
