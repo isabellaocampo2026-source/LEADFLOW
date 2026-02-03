@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { getLeads, SavedLead, deleteLead, updateLead } from "@/app/actions/leads"
-import { markAsContacted, enrichLeadWithEmail } from "@/app/actions/scrape"
+import { markAsContacted } from "@/app/actions/scrape"
+import { enrichLead } from "@/app/actions/enrich"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -130,14 +131,27 @@ export default function LeadsPage() {
         setEnrichingId(lead.id)
 
         try {
-            const result = await enrichLeadWithEmail(lead.placeId, lead.website)
-            if (result.success && result.email) {
+            const result = await enrichLead(lead.id, lead.website)
+            if (result.success && result.emails && result.emails.length > 0) {
+                // If multiple emails found, take the best one or all
+                const bestEmail = result.emails[0]
+
+                // Update local state
                 setLeads(prev => prev.map(l =>
-                    l.id === lead.id ? { ...l, email: result.email } : l
+                    l.id === lead.id ? { ...l, email: bestEmail } : l
                 ))
-                toast({ title: "Email encontrado", description: result.email })
+
+                const sourceLabel = result.source === 'hunter' ? 'Hunter.io' : 'Web Scraper';
+                toast({
+                    title: `¡Email encontrado por ${sourceLabel}!`,
+                    description: `Se han guardado ${result.emails.length} emails. ${bestEmail}`
+                })
             } else {
-                toast({ title: "No encontrado", description: "No se halló email público.", variant: "destructive" })
+                toast({
+                    title: "No encontrado",
+                    description: result.debugInfo || "No se halló email público.",
+                    variant: "warning"
+                })
             }
         } catch (error) {
             console.error(error)
