@@ -45,11 +45,6 @@ export function AppSidebar() {
             url: "/reports",
             icon: FileText,
         },
-        {
-            title: "Contactos VIP",
-            url: "/contacts",
-            icon: Users,
-        },
     ]
 
     return (

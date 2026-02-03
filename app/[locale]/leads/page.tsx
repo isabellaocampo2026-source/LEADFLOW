@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useMemo, useRef } from "react"
-import { getLeads, SavedLead } from "@/app/actions/leads"
+import { useEffect, useState, useMemo } from "react"
+import { getLeads, SavedLead, deleteLead, updateLead } from "@/app/actions/leads"
 import { markAsContacted, enrichLeadWithEmail } from "@/app/actions/scrape"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -19,22 +19,60 @@ import {
     Mail,
     Copy,
     Check,
-    MessageSquare,
-    Send
+    Pencil,
+    Download
 } from "lucide-react"
 import { useWhatsAppTemplate } from "@/lib/hooks/use-whatsapp-template"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { sendSMS } from "@/app/actions/sms"
+import { useToast } from "@/components/ui/use-toast"
+
+// Helper to download simplified CSV
+function downloadInstantlyCSV(leads: SavedLead[]) {
+    // Header
+    let csv = "Email,First Name,Last Name,Company Name,Personal Note,Website,Phone,City,State\n"
+
+    leads.forEach(lead => {
+        if (!lead.email) return
+
+        // Name Split
+        const parts = (lead.name || "Unknown").split(' ')
+        const firstName = parts[0]
+        const lastName = parts.slice(1).join(' ') || ""
+
+        // Safe CSV fields
+        const safe = (val: string | null | undefined) => `"${(val || "").replace(/"/g, '""')}"`
+
+        const note = `Category: ${lead.category || ''} | Rating: ${lead.rating || ''}`
+
+        // Rows
+        csv += `${safe(lead.email)},${safe(firstName)},${safe(lastName)},${safe(lead.name)},${safe(note)},${safe(lead.website)},${safe(lead.phone)},${safe(lead.city)},${safe('')}\n`
+    })
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `leads_instantly_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+}
 
 export default function LeadsPage() {
+    const { toast } = useToast()
     const [leads, setLeads] = useState<SavedLead[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState("")
     const [filterStatus, setFilterStatus] = useState<'all' | 'contacted' | 'pending' | 'withEmail'>('all')
     const [copiedEmail, setCopiedEmail] = useState<string | null>(null)
     const [enrichingId, setEnrichingId] = useState<string | null>(null)
+
+    // Edit Email Modal
+    const [editOpen, setEditOpen] = useState(false)
+    const [editingLead, setEditingLead] = useState<SavedLead | null>(null)
+    const [newEmail, setNewEmail] = useState("")
+    const [isSaving, setIsSaving] = useState(false)
 
     // WhatsApp Template
     const { template, setTemplate } = useWhatsAppTemplate()
@@ -44,11 +82,6 @@ export default function LeadsPage() {
     const [previewOpen, setPreviewOpen] = useState(false)
     const [previewMessage, setPreviewMessage] = useState("")
     const [selectedLead, setSelectedLead] = useState<SavedLead | null>(null)
-
-    // SMS Modal
-    const [smsOpen, setSmsOpen] = useState(false)
-    const [smsMessage, setSmsMessage] = useState("")
-    const [isSendingSms, setIsSendingSms] = useState(false)
 
     useEffect(() => {
         loadLeads()
@@ -101,16 +134,16 @@ export default function LeadsPage() {
         try {
             const result = await enrichLeadWithEmail(lead.placeId, lead.website)
             if (result.success && result.email) {
-                // Update local state
                 setLeads(prev => prev.map(l =>
                     l.id === lead.id ? { ...l, email: result.email } : l
                 ))
+                toast({ title: "Email encontrado", description: result.email })
             } else {
-                alert(result.error || "No se encontró email para este dominio")
+                toast({ title: "No encontrado", description: "No se halló email público.", variant: "destructive" })
             }
         } catch (error) {
             console.error(error)
-            alert("Error al buscar email")
+            toast({ title: "Error", description: "Fallo al buscar email", variant: "destructive" })
         } finally {
             setEnrichingId(null)
         }
@@ -138,64 +171,53 @@ export default function LeadsPage() {
 
         await markAsContacted(selectedLead.placeId)
 
-        // Update local state
         setLeads(prev => prev.map(l =>
             l.placeId === selectedLead.placeId ? { ...l, contacted: true } : l
         ))
         setPreviewOpen(false)
     }
 
-    const handleSMS = (lead: SavedLead) => {
-        setSelectedLead(lead)
-        // Default SMS template
-        let message = `Hola ${lead.name.split(' ')[0]}, vi tu negocio en ${lead.city || 'Google'}. Me ayudas con una duda?`
-        setSmsMessage(message)
-        setSmsOpen(true)
+    const startEditEmail = (lead: SavedLead) => {
+        setEditingLead(lead)
+        setNewEmail(lead.email || "")
+        setEditOpen(true)
     }
 
-    const sendSmsAction = async () => {
-        if (!selectedLead?.phone || !smsMessage.trim()) return
-
-        // Clean phone for Twilio (keep + and digits)
-        const cleanPhone = selectedLead.phone.replace(/[^+\d]/g, '')
-
-        setIsSendingSms(true)
+    const saveEmail = async () => {
+        if (!editingLead) return
+        setIsSaving(true)
         try {
-            const result = await sendSMS(cleanPhone, smsMessage)
-
-            if (result.success) {
-                // Mark as contacted locally
+            const success = await updateLead(editingLead.id, { email: newEmail })
+            if (success) {
                 setLeads(prev => prev.map(l =>
-                    l.placeId === selectedLead.placeId ? { ...l, contacted: true } : l
+                    l.id === editingLead.id ? { ...l, email: newEmail } : l
                 ))
-                // Mark in DB
-                await markAsContacted(selectedLead.placeId)
-                setSmsOpen(false)
+                toast({ title: "Guardado", description: "Email actualizado correctamente." })
+                setEditOpen(false)
             } else {
-                alert("Error al enviar SMS: " + result.error)
+                toast({ title: "Error", description: "No se pudo guardar.", variant: "destructive" })
             }
-        } catch (error: any) {
-            console.error(error)
-            alert("Error al enviar SMS: " + error.message)
+        } catch (e) {
+            toast({ title: "Error", description: "Falló la actualización.", variant: "destructive" })
         } finally {
-            setIsSendingSms(false)
+            setIsSaving(false)
         }
     }
 
-    const handleEmail = (lead: SavedLead) => {
-        if (!lead.email) return
-
-        // Simple template for email subject/body
-        const subject = `Propuesta para ${lead.name}`
-        const body = `Hola, vi que ${lead.name} podría mejorar su presencia online...`
-
-        window.location.href = `mailto:${lead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    const handleExport = () => {
+        const leadsToExport = filteredLeads.filter(l => l.email)
+        if (leadsToExport.length === 0) {
+            toast({ title: "Nada que exportar", description: "Filtra leads que tengan email primero.", variant: "destructive" })
+            return
+        }
+        downloadInstantlyCSV(leadsToExport)
+        toast({ title: "Exportado", description: `Se descargaron ${leadsToExport.length} leads para Instantly.` })
     }
 
     const stats = {
         total: leads.length,
         contacted: leads.filter(l => l.contacted).length,
-        pending: leads.filter(l => !l.contacted).length
+        withEmail: leads.filter(l => l.email).length
     }
 
     if (isLoading) {
@@ -208,42 +230,52 @@ export default function LeadsPage() {
 
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8 pt-0 max-w-5xl mx-auto">
-            {/* WhatsApp Preview Modal */}
-            {previewOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewOpen(false)}>
-                    <div className="bg-background p-6 rounded-lg w-full max-w-lg mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold mb-2">Mensaje para {selectedLead?.name}</h3>
-                        <textarea
-                            value={previewMessage}
-                            onChange={(e) => setPreviewMessage(e.target.value)}
-                            className="w-full h-40 p-3 border rounded-md text-sm resize-none"
-                        />
-                        <div className="flex gap-2 mt-4">
-                            <Button variant="outline" onClick={() => setPreviewOpen(false)} className="flex-1">
-                                Cancelar
-                            </Button>
-                            <Button onClick={confirmWhatsApp} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
-                                <MessageCircle className="mr-2 h-4 w-4" />
-                                Enviar WhatsApp
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">Mis Leads</h1>
                     <p className="text-muted-foreground">
-                        {stats.total} leads | {stats.contacted} contactados | {stats.pending} pendientes
+                        {stats.total} leads | {stats.withEmail} con email | {stats.contacted} contactados
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Plantilla
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Plantilla
+                    </Button>
+                    <Button variant="default" size="sm" onClick={handleExport} className="bg-purple-600 hover:bg-purple-700">
+                        <Download className="h-4 w-4 mr-2" />
+                        Exportar Instantly
+                    </Button>
+                </div>
             </div>
+
+            {/* Editing Dialog */}
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Editar Email</DialogTitle>
+                        <DialogDescription>
+                            Añade o corrige el email para <b>{editingLead?.name}</b>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Label>Email</Label>
+                        <Input
+                            value={newEmail}
+                            onChange={e => setNewEmail(e.target.value)}
+                            placeholder="ejemplo@empresa.com"
+                            onKeyDown={e => e.key === 'Enter' && saveEmail()}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+                        <Button onClick={saveEmail} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : "Guardar"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Template Settings */}
             {showSettings && (
@@ -258,9 +290,6 @@ export default function LeadsPage() {
                             className="w-full h-32 p-3 border rounded-md text-sm resize-none"
                             placeholder="Usa {{Nombre Negocio}}, {{Ciudad}}, {{Categoría}} como variables"
                         />
-                        <p className="text-xs text-muted-foreground mt-2">
-                            Variables: {'{{Nombre Negocio}}'}, {'{{Ciudad}}'}, {'{{Categoría}}'}
-                        </p>
                     </CardContent>
                 </Card>
             )}
@@ -270,43 +299,17 @@ export default function LeadsPage() {
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Buscar por nombre, teléfono, email o ciudad..."
+                        placeholder="Buscar..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9"
                     />
                 </div>
-                <div className="flex gap-2">
-                    <Button
-                        variant={filterStatus === 'all' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setFilterStatus('all')}
-                    >
-                        Todos
-                    </Button>
-                    <Button
-                        variant={filterStatus === 'pending' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setFilterStatus('pending')}
-                    >
-                        Pendientes
-                    </Button>
-                    <Button
-                        variant={filterStatus === 'contacted' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setFilterStatus('contacted')}
-                    >
-                        Contactados
-                    </Button>
-                    <Button
-                        variant={filterStatus === 'withEmail' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setFilterStatus('withEmail')}
-                        className={filterStatus === 'withEmail' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                    >
-                        <Mail className="h-3 w-3 mr-1" />
-                        Con Email
-                    </Button>
+                <div className="flex gap-2 bg-muted p-1 rounded-lg">
+                    <Button variant={filterStatus === 'all' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('all')}>Todos</Button>
+                    <Button variant={filterStatus === 'withEmail' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('withEmail')}>Con Email</Button>
+                    <Button variant={filterStatus === 'contacted' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('contacted')}>Contactados</Button>
+                    <Button variant={filterStatus === 'pending' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('pending')}>Pendientes</Button>
                 </div>
             </div>
 
@@ -315,147 +318,77 @@ export default function LeadsPage() {
                 <CardContent className="p-0">
                     {filteredLeads.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
-                            {search ? "No se encontraron leads" : "Aún no tienes leads guardados"}
+                            {search ? "No se encontraron leads" : "Vacío"}
                         </div>
                     ) : (
                         <div className="divide-y">
                             {filteredLeads.map((lead) => (
-                                <div
-                                    key={lead.id}
-                                    className="flex items-center justify-between p-4 hover:bg-muted/50"
-                                >
+                                <div key={lead.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/50 gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-medium truncate">{lead.name}</h3>
-                                            {lead.contacted && (
-                                                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                                            )}
+                                            {lead.contacted && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1 py-0 h-5">Contactado</Badge>}
                                         </div>
-                                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+
+                                        {/* Meta Row */}
+                                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
+                                            {/* Email Section (Editable) */}
+                                            <div
+                                                className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors ${lead.email ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                                onClick={() => startEditEmail(lead)}
+                                                title="Clic para editar email"
+                                            >
+                                                <Mail className="h-3 w-3" />
+                                                <span className="font-medium">{lead.email || "Añadir Email"}</span>
+                                                <Pencil className="h-3 w-3 opacity-50 ml-1" />
+                                            </div>
+
                                             {lead.phone && (
                                                 <span className="flex items-center gap-1">
                                                     <Phone className="h-3 w-3" />
                                                     {lead.phone}
                                                 </span>
                                             )}
-                                            {lead.city && (
-                                                <span className="flex items-center gap-1">
-                                                    <MapPin className="h-3 w-3" />
-                                                    {lead.city}
-                                                </span>
-                                            )}
-                                            {lead.email && (
-                                                <span className="flex items-center gap-1 text-blue-600">
-                                                    <Mail className="h-3 w-3" />
-                                                    <span className="truncate max-w-[150px]">{lead.email}</span>
-                                                    <button
-                                                        onClick={() => copyEmail(lead.email!)}
-                                                        className="p-0.5 hover:bg-blue-100 rounded transition-colors"
-                                                        title="Copiar email"
-                                                    >
-                                                        {copiedEmail === lead.email ? (
-                                                            <Check className="h-3 w-3 text-green-600" />
-                                                        ) : (
-                                                            <Copy className="h-3 w-3" />
-                                                        )}
-                                                    </button>
-                                                </span>
-                                            )}
-                                            {(lead.rating || lead.reviewCount) && (
-                                                <span className="flex items-center gap-1">
-                                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                                    {lead.rating || '-'}
-                                                    {lead.reviewCount !== undefined && (
-                                                        <span className="text-muted-foreground">({lead.reviewCount})</span>
-                                                    )}
-                                                </span>
-                                            )}
-                                            {lead.category && (
-                                                <Badge variant="secondary" className="text-xs">
-                                                    {lead.category}
-                                                </Badge>
-                                            )}
+
+                                            {lead.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{lead.city}</span>}
+
                                             {lead.website ? (
-                                                <a
-                                                    href={lead.website}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-blue-600 hover:underline text-xs truncate max-w-[150px]"
-                                                >
-                                                    🌐 Web
-                                                </a>
+                                                <a href={lead.website} target="_blank" className="text-blue-500 hover:underline text-xs">Web ►</a>
                                             ) : (
-                                                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                                    Sin Web
-                                                </Badge>
+                                                <span className="text-orange-500 text-xs">Sin Web</span>
                                             )}
+
+                                            {/* Hybrid Algo Button */}
                                             {lead.website && !lead.email && (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     disabled={enrichingId === lead.id}
-                                                    onClick={() => handleEnrich(lead)}
-                                                    className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                    title="Buscar Email en este sitio (3 créditos)"
+                                                    onClick={(e) => { e.stopPropagation(); handleEnrich(lead); }}
+                                                    className="h-5 px-2 text-[10px] text-purple-600 bg-purple-50 hover:bg-purple-100"
                                                 >
-                                                    {enrichingId === lead.id ? (
-                                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                                    ) : (
-                                                        <Search className="h-3 w-3 mr-1" />
-                                                    )}
-                                                    Buscar Email
+                                                    {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "🤖 Buscar Email"}
                                                 </Button>
-                                            )}
-                                            {lead.mapsUrl && (
-                                                <a
-                                                    href={lead.mapsUrl}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-green-600 hover:underline text-xs"
-                                                >
-                                                    📍 Maps
-                                                </a>
                                             )}
                                         </div>
                                     </div>
 
-                                    <div className="ml-4 flex flex-col gap-2">
-                                        {lead.phone && !lead.contacted && (
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-green-600 hover:bg-green-700 text-white flex-1"
-                                                    onClick={() => handleWhatsApp(lead)}
-                                                >
-                                                    <MessageCircle className="h-4 w-4 mr-1" />
-                                                    WA
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
-                                                    onClick={() => handleSMS(lead)}
-                                                >
-                                                    <MessageSquare className="h-4 w-4 mr-1" />
-                                                    SMS
-                                                </Button>
-                                            </div>
-                                        )}
-                                        {lead.email && !lead.contacted && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
-                                                onClick={() => handleEmail(lead)}
-                                            >
-                                                <Mail className="h-4 w-4 mr-1" />
-                                                Email
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-2">
+                                        {lead.phone && (
+                                            <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleWhatsApp(lead)} title="WhatsApp">
+                                                <MessageCircle className="h-4 w-4" />
                                             </Button>
                                         )}
-                                        {lead.contacted && (
-                                            <Badge variant="outline" className="text-green-600 border-green-600">
-                                                Contactado
-                                            </Badge>
-                                        )}
+                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={async () => {
+                                            if (confirm("¿Borrar lead?")) {
+                                                await deleteLead(lead.id)
+                                                setLeads(l => l.filter(x => x.id !== lead.id))
+                                            }
+                                        }}>
+                                            <span className="sr-only">Borrar</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                                        </Button>
                                     </div>
                                 </div>
                             ))}
@@ -464,43 +397,23 @@ export default function LeadsPage() {
                 </CardContent>
             </Card>
 
-            <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Enviar SMS a {selectedLead?.name}</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="message">Mensaje</Label>
-                            <Textarea
-                                id="message"
-                                value={smsMessage}
-                                onChange={(e) => setSmsMessage(e.target.value)}
-                                rows={4}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Costo aproximado: $0.01 USD. Usando Twilio.
-                            </p>
+            {/* WA Preview - Kept same */}
+            {previewOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewOpen(false)}>
+                    <div className="bg-background p-6 rounded-lg w-full max-w-lg mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-semibold mb-2">Mensaje para {selectedLead?.name}</h3>
+                        <textarea
+                            value={previewMessage}
+                            onChange={(e) => setPreviewMessage(e.target.value)}
+                            className="w-full h-40 p-3 border rounded-md text-sm resize-none"
+                        />
+                        <div className="flex gap-2 mt-4">
+                            <Button variant="outline" onClick={() => setPreviewOpen(false)} className="flex-1">Cancelar</Button>
+                            <Button onClick={confirmWhatsApp} className="flex-1 bg-green-600 hover:bg-green-700 text-white">Enviar WhatsApp</Button>
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setSmsOpen(false)}>Cancelar</Button>
-                        <Button onClick={sendSmsAction} disabled={isSendingSms}>
-                            {isSendingSms ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Enviando...
-                                </>
-                            ) : (
-                                <>
-                                    <Send className="mr-2 h-4 w-4" />
-                                    Enviar SMS
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </div>
+            )}
         </div>
     )
 }

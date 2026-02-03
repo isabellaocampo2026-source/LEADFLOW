@@ -78,3 +78,25 @@ export async function deleteLead(leadId: string): Promise<{ success: boolean; er
         return { success: false, error: error.message }
     }
 }
+
+export async function updateLead(leadId: string, updates: Partial<SavedLead>): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('business_leads')
+            .update({
+                email: updates.email,
+                name: updates.name,
+                notes: updates.notes
+            })
+            .eq('id', leadId)
+
+        if (error) {
+            console.error('Update error:', error)
+            return false
+        }
+        return true
+    } catch (e) {
+        console.error(e)
+        return false
+    }
+}
