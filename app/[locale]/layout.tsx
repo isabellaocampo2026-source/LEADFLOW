@@ -4,6 +4,7 @@ import "../globals.css"; // Fixed path
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { NextIntlClientProvider } from 'next-intl';
+import { Toaster } from "@/components/ui/toaster"
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
@@ -44,6 +45,7 @@ export default async function RootLayout({
                 {children}
               </div>
             </main>
+            <Toaster />
           </SidebarProvider>
         </NextIntlClientProvider>
       </body>
