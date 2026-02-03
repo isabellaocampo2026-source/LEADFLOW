@@ -84,7 +84,10 @@ export default function ReportDetailPage() {
                     const sourceLabel = result.source === 'hunter' ? 'Hunter.io (Alta Confianza)' : 'Web Scraper';
                     toast.success(`¡Encontrados ${count} emails vía ${sourceLabel}!`)
                 } else {
-                    toast.warning("No se encontraron emails públicos para este dominio.")
+                    // Show debug info to help user understand WHY it failed (e.g. Hunter: Missing Key)
+                    toast.warning("No se encontraron emails.", {
+                        description: result.debugInfo || "Intenta verificar tu API Key o prueba otro dominio."
+                    })
                 }
                 loadReport() // Reload to show new data
             } else {
