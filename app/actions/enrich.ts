@@ -2,11 +2,13 @@
 
 import { AnyMailFinderService } from "@/lib/services/anymailfinder"
 import { EmailScraperService } from "@/lib/services/email-scraper"
+import { HunterService } from "@/lib/services/hunter"
 import { supabase } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 
 const enricher = new AnyMailFinderService()
 const scraper = new EmailScraperService()
+const hunter = new HunterService()
 
 export interface EnrichResult {
     success: boolean
@@ -14,11 +16,13 @@ export interface EnrichResult {
     savedCount?: number
     error?: string
     debugInfo?: string // For UI debugging
-    source?: 'scraper' | 'api'
+    source?: 'hunter' | 'scraper' | 'api'
+    richData?: any[] // Store full profiles if available
 }
 
 /**
- * Server action to enrich a lead with emails from AnyMailFinder
+ * Server action to enrich a lead with emails via Cascade Strategy
+ * Priority: Hunter.io -> Web Scraper
  * @param leadId - UUID of the lead in business_leads table
  * @param website - The website domain to search for
  */
@@ -50,28 +54,35 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
 
         console.log(`🔍 Enriching lead ${leadId} for domain: ${domain}`)
 
-        // 2. Strategy: Try Scraper First
+        // 2. Cascade Strategy: High Quality API (Hunter) -> Free Scraper -> Backup API
+
         let foundEmails: string[] = []
-        let source: 'scraper' | 'api' = 'scraper'
-        let scraperError = ""
+        let richData: any[] = []
+        let source: 'hunter' | 'scraper' | 'api' = 'scraper' // default fallback
+        let errors: string[] = []
 
-        // A. Run Scraper
-        const scrapeResult = await scraper.scrapeEmailsForDomain(domain)
-        if (scrapeResult.success && scrapeResult.emails.length > 0) {
-            foundEmails = scrapeResult.emails
-            console.log(`✅ Scraper found ${foundEmails.length} emails for ${domain}`)
+        // A. Priority 1: Hunter.io (Best for Decision Makers)
+        console.log("Checking Hunter.io...")
+        const hunterResponse = await hunter.findEmailsForDomain(domain)
+        if (hunterResponse.success && hunterResponse.emails.length > 0) {
+            console.log(`✅ Hunter found ${hunterResponse.emails.length} emails for ${domain}`)
+            foundEmails = hunterResponse.emails.map(e => e.value)
+            source = 'hunter'
+            richData = hunterResponse.emails
         } else {
-            console.log(`⚠️ Scraper empty for ${domain}. Error: ${scrapeResult.error || 'None'}`)
-            scraperError = scrapeResult.error || "No emails on web"
+            if (hunterResponse.error) errors.push(`Hunter: ${hunterResponse.error}`)
+            console.log(`⚠️ Hunter empty/failed for ${domain}. Falling back to Scraper...`)
 
-            // B. Fallback to API (optional, keeping it as backup if user wants)
-            /*
-            const result = await enricher.findEmailsForDomain(domain)
-            if (result.success && result.emails.length > 0) {
-                foundEmails = result.emails
-                source = 'api'
+            // B. Priority 2: Web Scraper (Free, broad coverage)
+            const scrapeResult = await scraper.scrapeEmailsForDomain(domain)
+            if (scrapeResult.success && scrapeResult.emails.length > 0) {
+                foundEmails = scrapeResult.emails
+                source = 'scraper'
+                console.log(`✅ Scraper found ${foundEmails.length} emails for ${domain}`)
+            } else {
+                errors.push(`Scraper: ${scrapeResult.error || 'Empty'}`)
+                console.log(`⚠️ Scraper empty for ${domain}.`)
             }
-            */
         }
 
         if (foundEmails.length === 0) {
@@ -79,7 +90,7 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
                 success: true,
                 emails: [],
                 savedCount: 0,
-                debugInfo: `Scraper: ${scraperError}`
+                debugInfo: errors.join(' | ')
             }
         }
 
@@ -106,6 +117,7 @@ export async function enrichLead(leadId: string, website: string): Promise<Enric
             emails: foundEmails,
             savedCount: foundEmails.length,
             source,
+            richData,
             debugInfo: `Source: ${source}`
         }
 
