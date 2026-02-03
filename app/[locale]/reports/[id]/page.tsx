@@ -81,7 +81,8 @@ export default function ReportDetailPage() {
             if (result.success) {
                 const count = result.savedCount || 0
                 if (count > 0) {
-                    toast.success(`¡Encontrados ${count} emails nuevos!`)
+                    const sourceLabel = result.source === 'hunter' ? 'Hunter.io (Alta Confianza)' : 'Web Scraper';
+                    toast.success(`¡Encontrados ${count} emails vía ${sourceLabel}!`)
                 } else {
                     toast.warning("No se encontraron emails públicos para este dominio.")
                 }
