@@ -1,6 +1,6 @@
 "use client"
 
-import { Calendar, Home, Inbox, Search, Settings, Phone, Database, FileText } from "lucide-react"
+import { Calendar, Home, Inbox, Search, Settings, Phone, Database, FileText, Users } from "lucide-react"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -44,6 +44,11 @@ export function AppSidebar() {
             title: "Reportes",
             url: "/reports",
             icon: FileText,
+        },
+        {
+            title: "Contactos VIP",
+            url: "/contacts",
+            icon: Users,
         },
     ]
 
