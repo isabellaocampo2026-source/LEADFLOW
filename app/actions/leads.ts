@@ -18,6 +18,7 @@ export interface SavedLead {
     contacted: boolean;
     notes?: string;
     scrapedAt: string;
+    archived?: boolean;
 }
 
 export interface GetLeadsResult {
@@ -53,7 +54,8 @@ export async function getLeads(): Promise<GetLeadsResult> {
             mapsUrl: row.maps_url,
             contacted: row.contacted,
             notes: row.notes,
-            scrapedAt: row.scraped_at
+            scrapedAt: row.scraped_at,
+            archived: row.archived
         }))
 
         return { success: true, data: leads }
@@ -79,6 +81,21 @@ export async function deleteLead(leadId: string): Promise<{ success: boolean; er
     }
 }
 
+export async function archiveLead(leadId: string, archive: boolean = true): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('business_leads')
+            .update({ archived: archive })
+            .eq('id', leadId)
+
+        if (error) throw error
+        return true
+    } catch (error) {
+        console.error('Error archiving lead:', error)
+        return false
+    }
+}
+
 export async function updateLead(leadId: string, updates: Partial<SavedLead>): Promise<boolean> {
     try {
         const { error } = await supabase
@@ -86,7 +103,8 @@ export async function updateLead(leadId: string, updates: Partial<SavedLead>): P
             .update({
                 email: updates.email,
                 name: updates.name,
-                notes: updates.notes
+                notes: updates.notes,
+                contacted: updates.contacted // Allow updating contacted status directly
             })
             .eq('id', leadId)
 

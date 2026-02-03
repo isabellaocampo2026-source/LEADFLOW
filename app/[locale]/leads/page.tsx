@@ -21,7 +21,10 @@ import {
     Copy,
     Check,
     Pencil,
-    Download
+    Download,
+    Trash2,
+    Globe,
+    X
 } from "lucide-react"
 import { useWhatsAppTemplate } from "@/lib/hooks/use-whatsapp-template"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
@@ -65,7 +68,7 @@ export default function LeadsPage() {
     const [leads, setLeads] = useState<SavedLead[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState("")
-    const [filterStatus, setFilterStatus] = useState<'all' | 'contacted' | 'pending' | 'withEmail'>('all')
+    const [filterStatus, setFilterStatus] = useState<'all' | 'contacted' | 'pending' | 'withEmail' | 'archived'>('all')
     const [copiedEmail, setCopiedEmail] = useState<string | null>(null)
     const [enrichingId, setEnrichingId] = useState<string | null>(null)
 
@@ -107,11 +110,16 @@ export default function LeadsPage() {
                 lead.name.toLowerCase().includes(search.toLowerCase()) ||
                 (lead.phone && lead.phone.includes(search)) ||
                 (lead.city && lead.city.toLowerCase().includes(search.toLowerCase())) ||
-                (lead.email && lead.email.toLowerCase().includes(search.toLowerCase()))
+                (lead.email && lead.email.toLowerCase().includes(search.toLowerCase())) ||
+                (lead.category && lead.category.toLowerCase().includes(search.toLowerCase()))
 
             // Status filter
+            const isArchived = filterStatus === 'archived'
+            if (!!lead.archived !== isArchived) return false // Strict separation
+
             const matchesStatus =
                 filterStatus === 'all' ||
+                filterStatus === 'archived' || // Handled above, but kept for clarity
                 (filterStatus === 'contacted' && lead.contacted) ||
                 (filterStatus === 'pending' && !lead.contacted) ||
                 (filterStatus === 'withEmail' && lead.email)
@@ -149,8 +157,13 @@ export default function LeadsPage() {
             } else {
                 toast({
                     title: "No encontrado",
-                    description: result.debugInfo || "No se halló email público.",
-                    variant: "warning"
+                    description: result.debugInfo || "No se halló email público. ¿Deseas descartar este lead?",
+                    variant: "warning",
+                    action: (
+                        <Button variant="outline" size="sm" onClick={() => handleArchive(lead.id)} className="bg-destructive/10 hover:bg-destructive/20 border-destructive/50 text-destructive font-semibold">
+                            Sí, Desechar
+                        </Button>
+                    )
                 })
             }
         } catch (error) {
@@ -159,6 +172,27 @@ export default function LeadsPage() {
         } finally {
             setEnrichingId(null)
         }
+    }
+
+    const handleArchive = async (id: string) => {
+        // Optimistic
+        setLeads(prev => prev.map(l => l.id === id ? { ...l, archived: true } : l))
+        const { archiveLead } = await import("@/app/actions/leads")
+        await archiveLead(id, true)
+        toast({ title: "Lead Archivado", description: "Se ha movido a la papelera." })
+    }
+
+    const handleRestore = async (id: string) => {
+        setLeads(prev => prev.map(l => l.id === id ? { ...l, archived: false } : l))
+        const { archiveLead } = await import("@/app/actions/leads")
+        await archiveLead(id, false)
+        toast({ title: "Lead Restaurado", description: "Vuelve a estar en tus activos." })
+    }
+
+    const toggleContacted = async (lead: SavedLead) => {
+        const newValue = !lead.contacted
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, contacted: newValue } : l))
+        await updateLead(lead.id, { contacted: newValue })
     }
 
     const startEditing = (lead: SavedLead) => {
@@ -240,9 +274,10 @@ export default function LeadsPage() {
     }
 
     const stats = {
-        total: leads.length,
-        contacted: leads.filter(l => l.contacted).length,
-        withEmail: leads.filter(l => l.email).length
+        total: leads.filter(l => !l.archived).length,
+        contacted: leads.filter(l => !l.archived && l.contacted).length,
+        withEmail: leads.filter(l => !l.archived && l.email).length,
+        archived: leads.filter(l => l.archived).length
     }
 
     if (isLoading) {
@@ -254,14 +289,16 @@ export default function LeadsPage() {
     }
 
     return (
-        <div className="flex flex-col gap-6 p-4 md:p-8 pt-0 max-w-5xl mx-auto">
+        <div className="flex flex-col gap-6 p-4 md:p-8 pt-0 max-w-6xl mx-auto">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">Mis Leads</h1>
-                    <p className="text-muted-foreground">
-                        {stats.total} leads | {stats.withEmail} con email | {stats.contacted} contactados
-                    </p>
+                    <div className="flex gap-4 text-sm text-muted-foreground mt-1">
+                        <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {stats.contacted} Contactados</span>
+                        <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {stats.withEmail} con Email</span>
+                        <span className="flex items-center gap-1"><Trash2 className="h-3 w-3" /> {stats.archived} Archivados</span>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
@@ -270,7 +307,7 @@ export default function LeadsPage() {
                     </Button>
                     <Button variant="default" size="sm" onClick={handleExport} className="bg-purple-600 hover:bg-purple-700">
                         <Download className="h-4 w-4 mr-2" />
-                        Exportar Instantly
+                        Exportar CSV
                     </Button>
                 </div>
             </div>
@@ -293,21 +330,33 @@ export default function LeadsPage() {
             )}
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
+            <div className="flex flex-col md:flex-row gap-4 justify-between">
+                <div className="relative w-full md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Buscar..."
+                        placeholder="Buscar nombre, ciudad..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9"
                     />
                 </div>
-                <div className="flex gap-2 bg-muted p-1 rounded-lg">
-                    <Button variant={filterStatus === 'all' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('all')}>Todos</Button>
-                    <Button variant={filterStatus === 'withEmail' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('withEmail')}>Con Email</Button>
-                    <Button variant={filterStatus === 'contacted' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('contacted')}>Contactados</Button>
-                    <Button variant={filterStatus === 'pending' ? 'secondary' : 'ghost'} size="sm" onClick={() => setFilterStatus('pending')}>Pendientes</Button>
+                <div className="flex flex-wrap gap-2">
+                    <Button variant={filterStatus === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('all')}>
+                        Activos ({stats.total})
+                    </Button>
+                    <Button variant={filterStatus === 'contacted' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('contacted')}>
+                        Contactados
+                    </Button>
+                    <Button variant={filterStatus === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('pending')}>
+                        Pendientes
+                    </Button>
+                    <Button variant={filterStatus === 'withEmail' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('withEmail')}>
+                        Con Email
+                    </Button>
+                    <div className="w-px h-6 bg-border mx-1 self-center" />
+                    <Button variant={filterStatus === 'archived' ? 'destructive' : 'ghost'} size="sm" onClick={() => setFilterStatus('archived')} className={filterStatus === 'archived' ? "" : "text-muted-foreground hover:text-destructive"}>
+                        <Trash2 className="h-4 w-4 mr-1" /> Papelera
+                    </Button>
                 </div>
             </div>
 
@@ -315,22 +364,49 @@ export default function LeadsPage() {
             <Card>
                 <CardContent className="p-0">
                     {filteredLeads.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            {search ? "No se encontraron leads" : "Vacío"}
+                        <div className="text-center py-16 text-muted-foreground">
+                            {filterStatus === 'archived' ? (
+                                <div className="flex flex-col items-center gap-2">
+                                    <Trash2 className="h-8 w-8 opacity-20" />
+                                    <p>La papelera está vacía.</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-2">
+                                    <Search className="h-8 w-8 opacity-20" />
+                                    <p>No se encontraron leads con estos filtros.</p>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="divide-y">
                             {filteredLeads.map((lead) => (
-                                <div key={lead.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/50 gap-4">
+                                <div key={lead.id} className={`flex flex-col md:flex-row md:items-center justify-between p-4 gap-4 transition-colors ${lead.contacted ? 'bg-green-50/30' : 'hover:bg-muted/30'}`}>
+
+                                    {/* Left: Info */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-medium truncate">{lead.name}</h3>
-                                            {lead.contacted && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1 py-0 h-5">Contactado</Badge>}
+                                        <div className="flex items-start justify-between md:justify-start gap-3">
+                                            <h3 className="font-semibold text-lg truncate leading-tight">{lead.name}</h3>
+
+                                            {/* Badges */}
+                                            <div className="flex gap-2 shrink-0">
+                                                {lead.rating && (
+                                                    <Badge variant="secondary" className="gap-1 px-1.5 h-6 bg-yellow-400/10 text-yellow-700 hover:bg-yellow-400/20 border-yellow-200">
+                                                        <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                                                        <span className="font-bold">{lead.rating}</span>
+                                                        <span className="text-muted-foreground/60 font-normal">({lead.reviewCount})</span>
+                                                    </Badge>
+                                                )}
+                                                {lead.contacted && <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">Contactado</Badge>}
+                                            </div>
                                         </div>
 
-                                        {/* Meta Row */}
-                                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                                            {/* Email Section (Inline Edit) */}
+                                        <p className="text-sm text-muted-foreground mt-1 truncate">
+                                            {lead.category} • {lead.city} {lead.address && `• ${lead.address}`}
+                                        </p>
+
+                                        {/* Action Bar within Info */}
+                                        <div className="flex flex-wrap items-center gap-3 mt-3 text-sm">
+                                            {/* Email Widget */}
                                             {editingId === lead.id ? (
                                                 <div className="flex items-center gap-2">
                                                     <Mail className="h-3 w-3 text-blue-600" />
@@ -340,70 +416,97 @@ export default function LeadsPage() {
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                         onKeyDown={(e) => handleKeyDown(e, lead.id)}
                                                         onBlur={() => saveInlineEmail(lead.id, editValue)}
-                                                        className="h-6 w-[200px] text-xs px-1 py-0"
+                                                        className="h-7 w-[220px] text-xs"
                                                         placeholder="Pegar email aquí..."
                                                     />
                                                 </div>
                                             ) : (
                                                 <div
-                                                    className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors border ${lead.email ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}
-                                                    onClick={() => startEditing(lead)}
-                                                    title="Clic para editar"
+                                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer transition-all border ${lead.email
+                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                                        : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:border-border'}`}
+                                                    onClick={() => !lead.archived && startEditing(lead)}
+                                                    title={lead.email ? "Clic para editar" : "Clic para añadir manual"}
                                                 >
-                                                    <Mail className="h-3 w-3" />
-                                                    <span className="font-medium min-w-[20px]">
-                                                        {lead.email || "Click para añadir email"}
+                                                    <Mail className={`h-3.5 w-3.5 ${lead.email ? 'text-blue-600' : 'opacity-50'}`} />
+                                                    <span className="font-medium text-xs">
+                                                        {lead.email || "Añadir Email"}
                                                     </span>
-                                                    <Pencil className="h-3 w-3 opacity-30 ml-1" />
                                                 </div>
                                             )}
 
-                                            {lead.phone && (
-                                                <span className="flex items-center gap-1">
-                                                    <Phone className="h-3 w-3" />
-                                                    {lead.phone}
+                                            {/* Website Link */}
+                                            {lead.website ? (
+                                                <a href={lead.website} target="_blank" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                                                    <Globe className="h-3.5 w-3.5" /> Web
+                                                </a>
+                                            ) : (
+                                                <span className="flex items-center gap-1 text-xs text-muted-foreground/50 cursor-not-allowed">
+                                                    <Globe className="h-3.5 w-3.5" /> Sin Web
                                                 </span>
                                             )}
 
-                                            {lead.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{lead.city}</span>}
-
-                                            {lead.website ? (
-                                                <a href={lead.website} target="_blank" className="text-blue-500 hover:underline text-xs">Web ►</a>
-                                            ) : (
-                                                <span className="text-orange-500 text-xs">Sin Web</span>
-                                            )}
-
-                                            {/* Hybrid Algo Button */}
-                                            {lead.website && !lead.email && !editingId && (
+                                            {/* Hunter Button (Only if Active, Has Web, No Email) */}
+                                            {!lead.archived && lead.website && !lead.email && !editingId && (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     disabled={enrichingId === lead.id}
                                                     onClick={(e) => { e.stopPropagation(); handleEnrich(lead); }}
-                                                    className="h-5 px-2 text-[10px] text-purple-600 bg-purple-50 hover:bg-purple-100 ml-2"
+                                                    className="h-7 px-3 text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800 border border-purple-200"
                                                 >
-                                                    {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "🤖 Buscar"}
+                                                    {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Search className="h-3 w-3 mr-1" />}
+                                                    Buscar Dueño
                                                 </Button>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-2">
-                                        {lead.phone && (
-                                            <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleWhatsApp(lead)} title="WhatsApp">
-                                                <MessageCircle className="h-4 w-4" />
-                                            </Button>
+                                    {/* Right: Actions */}
+                                    <div className="flex items-center gap-2 md:self-center pt-2 md:pt-0 border-t md:border-t-0 mt-2 md:mt-0 justify-end">
+
+                                        {!lead.archived ? (
+                                            <>
+                                                {/* Contact Toggle */}
+                                                <Button
+                                                    size="sm"
+                                                    variant={lead.contacted ? "outline" : "outline"}
+                                                    className={`h-9 px-3 text-xs gap-1.5 ${lead.contacted ? 'bg-green-50 text-green-700 border-green-200' : 'text-muted-foreground'}`}
+                                                    onClick={() => toggleContacted(lead)}
+                                                >
+                                                    <CheckCircle2 className={`h-4 w-4 ${lead.contacted ? 'fill-green-200' : ''}`} />
+                                                    {lead.contacted ? "Contactado" : "Marcar"}
+                                                </Button>
+
+                                                {/* WhatsApp */}
+                                                {lead.phone && (
+                                                    <Button size="icon" variant="ghost" className="h-9 w-9 text-green-600 hover:bg-green-50 rounded-full" onClick={() => handleWhatsApp(lead)} title="Abrir WhatsApp">
+                                                        <MessageCircle className="h-5 w-5" />
+                                                    </Button>
+                                                )}
+
+                                                {/* Archive/Delete */}
+                                                <div className="w-px h-6 bg-border mx-1" />
+                                                <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleArchive(lead.id)} title="Mover a Papelera">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-xs text-muted-foreground mr-2 italic">Archivado</span>
+                                                <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => handleRestore(lead.id)}>
+                                                    <Check className="h-3 w-3" /> Restaurar
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={async () => {
+                                                    if (confirm("¿Eliminar definitivamente?")) {
+                                                        await deleteLead(lead.id)
+                                                        setLeads(l => l.filter(x => x.id !== lead.id))
+                                                    }
+                                                }}>
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </>
                                         )}
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={async () => {
-                                            if (confirm("¿Borrar lead?")) {
-                                                await deleteLead(lead.id)
-                                                setLeads(l => l.filter(x => x.id !== lead.id))
-                                            }
-                                        }}>
-                                            <span className="sr-only">Borrar</span>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                                        </Button>
                                     </div>
                                 </div>
                             ))}
