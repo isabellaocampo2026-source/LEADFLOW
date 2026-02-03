@@ -9,9 +9,7 @@ const nextConfig = {
     // Disable strict mode to avoid double rendering issues
     reactStrictMode: false,
     // Ignore ESLint errors during build (for faster Vercel deploys)
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
+
     // Ignore TypeScript errors during build
     typescript: {
         ignoreBuildErrors: true,
