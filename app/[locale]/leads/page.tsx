@@ -134,6 +134,34 @@ export default function LeadsPage() {
         setTimeout(() => setCopiedEmail(null), 2000)
     }
 
+    const copySalesScript = async (lead: SavedLead) => {
+        if (!lead.email) return
+
+        // 1. Extract Name from Email (Simple heuristic)
+        // juan.perez@... -> Juan
+        // rodrigo@... -> Rodrigo
+        let name = "Gerente" // Default
+        const localPart = lead.email.split('@')[0]
+        if (localPart) {
+            // Take first part if dot or underscore exists
+            const rawName = localPart.split(/[._]/)[0]
+            // Capitalize
+            name = rawName.charAt(0).toUpperCase() + rawName.slice(1)
+        }
+
+        // 2. Build Template
+        const script = `Buenas tardes Sr ${name}, mi nombre es Mauricio de GMBstart.
+
+Posicionamos firmas de abogados en los primeros lugares de las búsquedas locales de Google. Nuestros dos últimos casos alcanzaron el primer lugar y ya tienen 200 llamadas extra al mes.
+
+Con esto podrías aumentar por mínimo que sea y mal que vaya 5 ventas extras al mes. No te quiero saturar por acá; somos una empresa seria que cree en el ganar-ganar y en la confianza. Tenemos un servicio valioso y queremos crear una relación a largo plazo.
+
+Si te suena la idea, por favor respóndeme y te comento más o agendamos una reunión virtual`
+
+        await navigator.clipboard.writeText(script)
+        toast({ title: "Script Copiado", description: `Personalizado para "Sr ${name}"` })
+    }
+
     const handleEnrich = async (lead: SavedLead) => {
         if (!lead.website || enrichingId) return
         setEnrichingId(lead.id)
@@ -433,6 +461,19 @@ export default function LeadsPage() {
                                                         {lead.email || "Añadir Email"}
                                                     </span>
                                                 </div>
+                                            )}
+
+                                            {/* Copy Script Button */}
+                                            {lead.email && !lead.archived && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                                    onClick={(e) => { e.stopPropagation(); copySalesScript(lead); }}
+                                                    title="Copiar Script de Venta"
+                                                >
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                </Button>
                                             )}
 
                                             {/* Website Link */}
