@@ -449,130 +449,156 @@ Si te suena la idea, por favor respóndeme y te comento más o agendamos una reu
                                                     />
                                                 </div>
                                             ) : (
-                                                <div
-                                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer transition-all border ${lead.email
-                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                                        : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:border-border'}`}
-                                                    onClick={() => !lead.archived && startEditing(lead)}
-                                                    title={lead.email ? "Clic para editar" : "Clic para añadir manual"}
-                                                >
-                                                    <Mail className={`h-3.5 w-3.5 ${lead.email ? 'text-blue-600' : 'opacity-50'}`} />
-                                                    <span className="font-medium text-xs">
-                                                        {lead.email || "Añadir Email"}
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {/* Copy Script Button */}
-                                            {lead.email && !lead.archived && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-muted-foreground hover:text-primary"
-                                                    onClick={(e) => { e.stopPropagation(); copySalesScript(lead); }}
-                                                    title="Copiar Script de Venta"
-                                                >
-                                                    <Copy className="h-3.5 w-3.5" />
-                                                </Button>
-                                            )}
-
-                                            {/* Website Link */}
-                                            {lead.website ? (
-                                                <a href={lead.website} target="_blank" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
-                                                    <Globe className="h-3.5 w-3.5" /> Web
-                                                </a>
-                                            ) : (
-                                                <span className="flex items-center gap-1 text-xs text-muted-foreground/50 cursor-not-allowed">
-                                                    <Globe className="h-3.5 w-3.5" /> Sin Web
-                                                </span>
-                                            )}
-
-                                            {/* Hunter Button (Only if Active, Has Web, No Email) */}
-                                            {!lead.archived && lead.website && !lead.email && !editingId && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    disabled={enrichingId === lead.id}
-                                                    onClick={(e) => { e.stopPropagation(); handleEnrich(lead); }}
-                                                    className="h-7 px-3 text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800 border border-purple-200"
-                                                >
-                                                    {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Search className="h-3 w-3 mr-1" />}
-                                                    Buscar Dueño
-                                                </Button>
-                                            )}
+                                            ): (
+                                                    <div className = "flex items-center gap-1">
+                                                    <div
+                                                        className = {`flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer transition-all border ${lead.email
+                                                            ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                                            : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:border-border'}`}
+                                            onClick={() => {
+                                                if (lead.email) {
+                                                    copyEmail(lead.email);
+                                                    toast({ title: "Email Copiado", description: lead.email });
+                                                } else {
+                                                    !lead.archived && startEditing(lead);
+                                                }
+                                            }}
+                                            title={lead.email ? "Clic para copiar email" : "Clic para añadir manual"}
+                                                    >
+                                            <Mail className={`h-3.5 w-3.5 ${lead.email ? 'text-blue-600' : 'opacity-50'}`} />
+                                            <span className="font-medium text-xs">
+                                                {lead.email || "Añadir Email"}
+                                            </span>
                                         </div>
+
+                                        {/* Separate Edit Button */}
+                                        {lead.email && !lead.archived && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-muted-foreground hover:text-primary opacity-50 hover:opacity-100"
+                                                onClick={(e) => { e.stopPropagation(); startEditing(lead); }}
+                                                title="Editar email manual"
+                                            >
+                                                <Pencil className="h-3 w-3" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                            )}
+
+                                    {/* Copy Script Button */}
+                                    {lead.email && !lead.archived && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                            onClick={(e) => { e.stopPropagation(); copySalesScript(lead); }}
+                                            title="Copiar Script de Venta"
+                                        >
+                                            <Copy className="h-3.5 w-3.5" />
+                                        </Button>
+                                    )}
+
+                                    {/* Website Link */}
+                                    {lead.website ? (
+                                        <a href={lead.website} target="_blank" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                                            <Globe className="h-3.5 w-3.5" /> Web
+                                        </a>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-xs text-muted-foreground/50 cursor-not-allowed">
+                                            <Globe className="h-3.5 w-3.5" /> Sin Web
+                                        </span>
+                                    )}
+
+                                    {/* Hunter Button (Only if Active, Has Web, No Email) */}
+                                    {!lead.archived && lead.website && !lead.email && !editingId && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={enrichingId === lead.id}
+                                            onClick={(e) => { e.stopPropagation(); handleEnrich(lead); }}
+                                            className="h-7 px-3 text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800 border border-purple-200"
+                                        >
+                                            {enrichingId === lead.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Search className="h-3 w-3 mr-1" />}
+                                            Buscar Dueño
+                                        </Button>
+                                    )}
+                                </div>
                                     </div>
 
                                     {/* Right: Actions */}
-                                    <div className="flex items-center gap-2 md:self-center pt-2 md:pt-0 border-t md:border-t-0 mt-2 md:mt-0 justify-end">
+                    <div className="flex items-center gap-2 md:self-center pt-2 md:pt-0 border-t md:border-t-0 mt-2 md:mt-0 justify-end">
 
-                                        {!lead.archived ? (
-                                            <>
-                                                {/* Contact Toggle */}
-                                                <Button
-                                                    size="sm"
-                                                    variant={lead.contacted ? "outline" : "outline"}
-                                                    className={`h-9 px-3 text-xs gap-1.5 ${lead.contacted ? 'bg-green-50 text-green-700 border-green-200' : 'text-muted-foreground'}`}
-                                                    onClick={() => toggleContacted(lead)}
-                                                >
-                                                    <CheckCircle2 className={`h-4 w-4 ${lead.contacted ? 'fill-green-200' : ''}`} />
-                                                    {lead.contacted ? "Contactado" : "Marcar"}
-                                                </Button>
+                        {!lead.archived ? (
+                            <>
+                                {/* Contact Toggle */}
+                                <Button
+                                    size="sm"
+                                    variant={lead.contacted ? "outline" : "outline"}
+                                    className={`h-9 px-3 text-xs gap-1.5 ${lead.contacted ? 'bg-green-50 text-green-700 border-green-200' : 'text-muted-foreground'}`}
+                                    onClick={() => toggleContacted(lead)}
+                                >
+                                    <CheckCircle2 className={`h-4 w-4 ${lead.contacted ? 'fill-green-200' : ''}`} />
+                                    {lead.contacted ? "Contactado" : "Marcar"}
+                                </Button>
 
-                                                {/* WhatsApp */}
-                                                {lead.phone && (
-                                                    <Button size="icon" variant="ghost" className="h-9 w-9 text-green-600 hover:bg-green-50 rounded-full" onClick={() => handleWhatsApp(lead)} title="Abrir WhatsApp">
-                                                        <MessageCircle className="h-5 w-5" />
-                                                    </Button>
-                                                )}
+                                {/* WhatsApp */}
+                                {lead.phone && (
+                                    <Button size="icon" variant="ghost" className="h-9 w-9 text-green-600 hover:bg-green-50 rounded-full" onClick={() => handleWhatsApp(lead)} title="Abrir WhatsApp">
+                                        <MessageCircle className="h-5 w-5" />
+                                    </Button>
+                                )}
 
-                                                {/* Archive/Delete */}
-                                                <div className="w-px h-6 bg-border mx-1" />
-                                                <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleArchive(lead.id)} title="Mover a Papelera">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="text-xs text-muted-foreground mr-2 italic">Archivado</span>
-                                                <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => handleRestore(lead.id)}>
-                                                    <Check className="h-3 w-3" /> Restaurar
-                                                </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={async () => {
-                                                    if (confirm("¿Eliminar definitivamente?")) {
-                                                        await deleteLead(lead.id)
-                                                        setLeads(l => l.filter(x => x.id !== lead.id))
-                                                    }
-                                                }}>
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* WA Preview - Kept same */}
-            {previewOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewOpen(false)}>
-                    <div className="bg-background p-6 rounded-lg w-full max-w-lg mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold mb-2">Mensaje para {selectedLead?.name}</h3>
-                        <textarea
-                            value={previewMessage}
-                            onChange={(e) => setPreviewMessage(e.target.value)}
-                            className="w-full h-40 p-3 border rounded-md text-sm resize-none"
-                        />
-                        <div className="flex gap-2 mt-4">
-                            <Button variant="outline" onClick={() => setPreviewOpen(false)} className="flex-1">Cancelar</Button>
-                            <Button onClick={confirmWhatsApp} className="flex-1 bg-green-600 hover:bg-green-700 text-white">Enviar WhatsApp</Button>
-                        </div>
+                                {/* Archive/Delete */}
+                                <div className="w-px h-6 bg-border mx-1" />
+                                <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleArchive(lead.id)} title="Mover a Papelera">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-xs text-muted-foreground mr-2 italic">Archivado</span>
+                                <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => handleRestore(lead.id)}>
+                                    <Check className="h-3 w-3" /> Restaurar
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={async () => {
+                                    if (confirm("¿Eliminar definitivamente?")) {
+                                        await deleteLead(lead.id)
+                                        setLeads(l => l.filter(x => x.id !== lead.id))
+                                    }
+                                }}>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
-            )}
+                            ))}
         </div>
+    )
+}
+                </CardContent >
+            </Card >
+
+    {/* WA Preview - Kept same */ }
+{
+    previewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewOpen(false)}>
+            <div className="bg-background p-6 rounded-lg w-full max-w-lg mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-2">Mensaje para {selectedLead?.name}</h3>
+                <textarea
+                    value={previewMessage}
+                    onChange={(e) => setPreviewMessage(e.target.value)}
+                    className="w-full h-40 p-3 border rounded-md text-sm resize-none"
+                />
+                <div className="flex gap-2 mt-4">
+                    <Button variant="outline" onClick={() => setPreviewOpen(false)} className="flex-1">Cancelar</Button>
+                    <Button onClick={confirmWhatsApp} className="flex-1 bg-green-600 hover:bg-green-700 text-white">Enviar WhatsApp</Button>
+                </div>
+            </div>
+        </div>
+    )
+}
+        </div >
     )
 }
